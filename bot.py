@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import json
+import random
 
 with open('setting.json','r',encoding='utf-8') as jfile:
     jdata=json.load(jfile)
@@ -22,9 +23,16 @@ async def ping(ctx):
     await ctx.send(f'{round(bot.latency*1000,1)}ms')
 
 @bot.command()
-async def picture(ctx):
-    pic=discord.File('C:\\Users\\user\\Documents\\GitHub\\KomarouBot\\pictures\\1.jpg')
-    await ctx.send(file=pic)
+async def agyou(ctx):
+    pic=random.choice(jdata['PIC'])
+    ag=discord.File(pic)
+    await ctx.send(file=ag)
+
+@bot.command()
+async def agyour18(ctx):
+    pic=random.choice(jdata['PIC18'])
+    ag=discord.File(pic)
+    await ctx.send(file=ag)
 
 
 bot.run(jdata['TOKEN'])
