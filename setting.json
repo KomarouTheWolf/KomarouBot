@@ -102,5 +102,6 @@
         "小傑",
         "奇犽",
         "魔槍手",
-        "燈火使"]
+        "燈火使"],
+    "DES":"機器人專用開頭:kmrzb (KoMaRouZomBie)\n1.kmrzbban 自動ban五個職業\n2.kmrzbdth 紀錄殭屍擊殺數\n[kmrzbdth 數字(增加)/zero(歸零)/show(顯示)]\n3.kmrzbdmg 計算殭屍傷害\n[kmrzbdmg 殭屍數 人數]"
 }

@@ -82,7 +82,10 @@ async def ban(ctx):
         oao+=(a+" ")
     await ctx.message.channel.send(f'```{oao}```')
 
-
+@bot.command()
+async def helping(ctx):
+    bsd=jdata["DES"]
+    await ctx.message.channel.send(f'```{bsd}```')
 
 @bot.event
 async def on_message(msg):
