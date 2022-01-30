@@ -78,10 +78,10 @@ def giveitem(reciever,arg1,arg2='1'): #receiver是int,arg1是物品名稱
                 users.append(int(rawdata[0]))
             if reciever in users:
                 raw_available_item=readitem(itemrawdata[users.index(reciever)])
+                item_have=[]
+                item_count=[]
                 for raw in raw_available_item:
-                    item_have=[]
-                    item_count=[]
-                    raw=raw.split('%')     #問題發生之前
+                    raw=raw.split('%')
                     item_have.append(raw[0])
                     item_count.append(int(raw[1]))
                 if arg1 in item_have :
@@ -112,7 +112,7 @@ def giveitem(reciever,arg1,arg2='1'): #receiver是int,arg1是物品名稱
                     removeend(item)
                     return True
             else:
-                dorecord(item,f"{reciever},0,{arg1}%{arg2}")
+                dorecord(item,f"{reciever},0,0%0;{arg1}%{arg2}")
                 return True
         else:
             return '這個東西似乎名稱不對呢-w-...\n請確定您輸入的是不含稀有度的道具全名-w-...'
@@ -130,9 +130,9 @@ def removeitem(reciever,arg1,arg2='1'): #receiver是int,arg1是物品名稱 #成
                 users.append(int(rawdata[0]))
             if reciever in users:
                 raw_available_item=readitem(itemrawdata[users.index(reciever)])
+                item_have=[]
+                item_count=[]
                 for raw in raw_available_item:
-                    item_have=[]
-                    item_count=[]
                     raw=raw.split('%')
                     item_have.append(raw[0])
                     item_count.append(int(raw[1]))
@@ -179,7 +179,8 @@ def O_redeem(redeem_item_ID):
             b="D5"
         return b
     elif redeem_item_ID == "O2":
-        a=random.randint(1,60)+60
+        a=random.randint(1,50)
+        a+=50
         if 0<a<=60:
             b=random.choice(["D1","D2"])
         elif 60<a<=95:
@@ -226,6 +227,7 @@ class Rpg(Cog_Extension):
             useitem=False
             counted=False
             lance=0 #追擊
+            lastshot=0
 
             #讀取使用的道具
             for el in args:
@@ -255,7 +257,6 @@ class Rpg(Cog_Extension):
                 main2=WeaponResult[1]
                 down=int(WeaponResult[2])
                 up=int(WeaponResult[3])
-                lastshot=0
                 
                 if boss_hp<=0:
                     overkill=True
@@ -347,7 +348,6 @@ class Rpg(Cog_Extension):
                 await ctx.send(f'{ctx.author.mention}\n{textout}')
             else:
                 killed=True
-                boss_hp=0
                 textout+=f'尾刀！狛克被變成了薩摩耶！\n'
                 mvp=damagename[damagenumber.index(max(damagenumber))]
                 partofhp=round((max(damagenumber)-lastshot-atk+hpwas)/hpfirst*100,1)
@@ -357,6 +357,7 @@ class Rpg(Cog_Extension):
                 hahahalol=discord.File(random.choice(gifs["samoyed"]))
                 await ctx.send(f'{ctx.author.mention}\n{textout}',file=hahahalol)
 
+            secmes=""
             if killed:
                 dorecord("csvfile\\killed.csv",ctx.author.id)
                 history=doread("csvfile\\killed.csv")
@@ -364,16 +365,26 @@ class Rpg(Cog_Extension):
                     intkiller.append(int(a[0]))
                 userkills=intkiller.count(ctx.author.id)
                 if userkills %5 == 0 and userkills != 0:
-                    await ctx.send(f'{ctx.author.mention}\n恭喜！您已經把狛克變成薩摩耶{userkills}次！')
+                    secmes+=f'{ctx.author.mention}\n恭喜！您已經把狛克變成薩摩耶{userkills}次！\n'
                 if len(intkiller) %10 == 1:
-                    await ctx.send(f'{ctx.author.mention}\n恭喜！您是第{len(intkiller)-1}個把狛克變成薩摩耶的玩家！')
+                    secmes+=f'{ctx.author.mention}\n恭喜！您是第{len(intkiller)-1}個把狛克變成薩摩耶的玩家！\n'
+                    if len(intkiller) %1000 == 1:
+                        giveitem(ctx.author.id,"銀令牌")
+                        secmes+=f'你獲得了銀令牌！\n'
+                    elif len(intkiller) %100 == 1:
+                        giveitem(ctx.author.id,"鐵令牌")
+                        secmes+=f'你獲得了鐵令牌！\n'
+                    elif len(intkiller) %10 == 1:
+                        giveitem(ctx.author.id,"木令牌")
+                        secmes+=f'你獲得了木令牌！\n'
+                boss_hp=0
+
             #掉落寶物
             id=ctx.author.id
             roll_dice=random.randint(1,100)
             while combo != 0:
                 roll_dice+=random.randint(1,20)
                 combo-=1
-                print(roll_dice)
             they_get_it=False
             how_many=0
             mvp_get_it=False
@@ -389,12 +400,13 @@ class Rpg(Cog_Extension):
                     they_get_it=True
                     how_many=int(roll_dice/95)
             if they_get_it:
-                await ctx.send(f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！')
+                secmes+=f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！\n'
                 givetooth(id,how_many)
             if mvp_get_it:
-                await ctx.send(f'<@{mvp}>\n您獲得了1顆雪狼牙！')
+                secmes+=f'<@{mvp}>\n您獲得了1顆雪狼牙！\n'
                 givetooth(mvp,1)
-            print(f'結果是{roll_dice},{they_get_it}')
+            if secmes !="":
+                await ctx.send(f'{secmes}')
         else:
             await ctx.send(f'本頻道不可使用此指令，或者沒有登錄此頻道。')
 
@@ -507,7 +519,48 @@ class Rpg(Cog_Extension):
         else:
             await ctx.send(f'{ctx.author.mention}\n-w-...(完全不理你)')
 
+    @commands.command()
+    async def sethp(self,ctx,arg1=""):
+        if ctx.author.id == 429825029354553350:
+            global boss_hp
+            if arg1=="":
+                await ctx.send(f'{ctx.author.mention}\n啊你是要不要說設多少啦-w-...')
+            else:
+                if arg1.isdecimal():
+                    boss_hp=int(arg1)
+                    await ctx.send(f'{ctx.author.mention}\n血量已設定成{arg1} owo')
+                else:
+                    await ctx.send(f'{ctx.author.mention}\n你他媽設的要是數字啦-w-...')
+        else:
+            await ctx.send(f'{ctx.author.mention}\n-w-...(完全不理你)')
 
+    @commands.command() 
+    async def myitem(self,ctx):
+        users=[]
+        outmes=""
+        itemrawdata=doread(item)
+        for rawdata in itemrawdata:
+            users.append(int(rawdata[0]))
+        if ctx.author.id in users:
+            raw_available_item=readitem(itemrawdata[users.index(ctx.author.id)])
+            tooth=(itemrawdata[users.index(ctx.author.id)][1])
+            outmes+="您的持有道具如下：\n"
+            outmes+=f"雪狼牙：{tooth}顆\n"
+            outmes+=f"道具(按照獲得順序排列)\n"
+            item_have=[]
+            item_count=[]
+            for raw in raw_available_item:
+                raw=raw.split('%')
+                item_have.append(raw[0])
+                item_count.append(int(raw[1]))
+            for those in range(0,len(item_have)):
+                if item_count[those]!=0:
+                    outmes+=f"{find_item_value(find_item_id(item_have[those]))[2]}{item_have[those]}：{item_count[those]}個\n"
+                    outmes+=f"{find_item_value(find_item_id(item_have[those]))[3]}\n"
+            await ctx.send(f'{ctx.author.mention}\n{outmes}')
+                    
+        else:
+            await ctx.send(f'{ctx.author.mention}\n您似乎什麼都沒有呢-w-...')
 
 
 def setup(bot):
