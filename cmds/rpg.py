@@ -68,10 +68,33 @@ def givefur(id,how_many):
         itemrawdata[users.index(id)][1]=available_tooth
         with open(furfile,'w',encoding='utf-8') as opfile:
             for a in itemrawdata:
-                opfile.writelines(f'{a[0]},{a[1]},{a[2]}\n')
+                opfile.writelines(f'{a[0]},{a[1]}\n')
         removeend(furfile)
     else:
         dorecord(furfile,f'{id},{how_many}')
+
+def removefur(id,how_many):
+    users=[]
+    nohave=False
+    itemrawdata=doread(furfile)
+    for rawdata in itemrawdata:
+        users.append(int(rawdata[0]))
+    if id in users:
+        available_tooth=int(itemrawdata[users.index(id)][1])
+        if available_tooth < how_many:
+            nohave=True
+        else:
+            available_tooth-=how_many
+            itemrawdata[users.index(id)][1]=available_tooth
+            with open(furfile,'w',encoding='utf-8') as opfile:
+                for a in itemrawdata:
+                    opfile.writelines(f'{a[0]},{a[1]}\n')
+            removeend(furfile)
+            return True
+    else:
+        nohave=True
+    if nohave:
+        return "您似乎雪狼毛的數量不足呢-w-..."
 
 def find_item_id(item):             #得到的是str
     return item_id_file[item]
@@ -221,10 +244,12 @@ with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     gifs=json.load(jfile)
 with open('csvfile\itemfile.json','r',encoding='utf-8') as jfile:
     item_id_file=json.load(jfile)
+with open('csvfile\\furryshop.json','r',encoding='utf-8') as jfile:
+    furryshop=json.load(jfile)
 
 rpglist=doread('csvfile\\rpgweapon.csv')
 
-available_channel=(935768359931371540,935471683911954512,641131990959259667)
+available_channel=(935768359931371540,935471683911954512,641131990959259667,938827700968231022)
 
 boss_hp=0
 hpfirst=0
@@ -561,11 +586,10 @@ class Rpg(Cog_Extension):
                         mvp_get_it=True
             else:
                 if totaldamage >=0:
-                    if int(roll_dice/97)>0 :
+                    if int(roll_dice/98)>0 :
                         they_get_it=True
                         how_many=int(roll_dice/97)
                 else:
-                    roll_dice+=80 ######################??????????????######################################
                     if int(roll_dice/97)>0 :
                         they_get_fur=True
                         how_many=int(roll_dice/97)
@@ -730,7 +754,7 @@ class Rpg(Cog_Extension):
             outmes+="您的持有道具如下：\n"
             outmes+=f"雪狼牙：{tooth}顆\n"
             outmes+=f"雪狼毛：{fur}撮\n"
-            outmes+=f"道具(按照獲得順序排列)：\n"
+            outmes+=f"持有道具：\n"
             item_have=[]
             item_count=[]
             availableitem=0
@@ -773,15 +797,37 @@ class Rpg(Cog_Extension):
             if b not in skippingnumber:
                 for that in complexlist:
                     if intkilltime[b-1]==that[1]:
-                        print(that[0])
-                        print(type(that[0]))
                         aple=await self.bot.fetch_user(that[0])
                         truename=aple.display_name
                         outmes+=f"第{b}名:{truename}({that[1]}次)\n"
                 if intkilltime.count(intkilltime[b-1])>1:
                     for thth in range(1,intkilltime.count(intkilltime[b-1])):
                         skippingnumber.append(b+thth)
-        await ctx.send(f'{ctx.author.mention}\n目前把狛克變成薩摩耶次數的前十名排行榜:\n{outmes}')
+        await ctx.send(f'{ctx.author.mention}\n目前把狛克變成薩摩耶次數的前十名排行榜：\n{outmes}')
+
+    @commands.command()
+    async def furshop(self,ctx,arg1="",arg2="1"):
+        outmes=""
+        if arg1=="" and arg2=="1":
+            outmes+=f"歡迎來到雪狼毛商店！\n"
+            outmes+=f"輸入[k!furshop (品項名稱) (數量)]來用雪狼毛購買商品！\n"
+            shoplist=[elem for elem in furryshop]
+            for count in range(0,len(furryshop)):
+                outmes+=f"{count+1}.{shoplist[count]}(價格：{furryshop[shoplist[count]]})\n"
+        elif arg1 in furryshop:
+            if arg2.isdecimal():
+                thenum=int(arg2)*furryshop[arg1]
+                zzzz=removefur(ctx.author.id,thenum)
+                if zzzz !=True:
+                    outmes+=f"{zzzz}"
+                else:
+                    giveitem(ctx.author.id,arg1,arg2)
+                    outmes+=f"以{thenum}撮雪狼毛獲得了{arg2}個{arg1}！"
+            else:
+                outmes+=f"商品數量請輸入整數-w-..."
+        else:
+            outmes+=f"無法辨識！請確定商品編號正確！"
+        await ctx.send(f'{ctx.author.mention}\n{outmes}')
                     
 def setup(bot):
     bot.add_cog(Rpg(bot))
