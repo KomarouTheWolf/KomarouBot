@@ -4,6 +4,7 @@ from core.classes import Cog_Extension
 import json
 import random
 import csv
+import time
 
 def numnum(a):
     try:
@@ -56,6 +57,29 @@ def givetooth(id,how_many):
         removeend(item)
     else:
         dorecord(item,f'{id},{how_many},0%0')
+
+def removetooth(id,how_many):
+    users=[]
+    itemrawdata=doread(item)
+    nohave=False
+    for rawdata in itemrawdata:
+        users.append(int(rawdata[0]))
+    if id in users:
+        available_tooth=int(itemrawdata[users.index(id)][1])
+        if available_tooth < how_many:
+            nohave=True
+        else:
+            available_tooth-=how_many
+            itemrawdata[users.index(id)][1]=available_tooth
+            with open(item,'w',encoding='utf-8') as opfile:
+                for a in itemrawdata:
+                    opfile.writelines(f'{a[0]},{a[1]},{a[2]}\n')
+            removeend(item)
+            return True
+    else:
+        nohave=True
+    if nohave:
+        return "您似乎雪狼牙的數量不足呢-w-..."
 
 def givefur(id,how_many):
     users=[]
@@ -236,6 +260,51 @@ def ifused(item,itemused):
     else:
         return False
 
+def conflict(weapontype,bkind,itemused):
+    v=0
+    if weapontype=='a' and bkind=='b':
+        v=1
+    if weapontype=='b' and bkind=='a':
+        v=1
+    if weapontype=='b' and ifused("D1",itemused):
+        v=1
+    if weapontype=='b' and ifused("D4",itemused):
+        v=1
+    return v
+def createtxt(mes):
+    k=round(time.time()*100)
+    with open(f'temporary\{k}.txt','a',encoding='utf-8') as txtfile:
+        txtfile.writelines(mes)
+    return f'temporary\{k}.txt'
+
+def gat(userys,up=0):
+    setsumei=doread("csvfile\\itemdata.csv")
+    onestar=[ele for ele in setsumei if ele[2]=="[☆]"]
+    twostar=[ele for ele in setsumei if ele[2]=="[☆☆]"]
+    threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]"]
+    dice=up+random.randint(1,100-up)
+    gatcharesult=[]
+    if 0<dice<=75:
+        gatcharesult=random.choice(onestar)
+    elif 75<dice<=95:
+        gatcharesult=random.choice(twostar)
+    elif 95<dice<=100:
+        gatcharesult=random.choice(threestar)
+    if not gatcharesult[4].isdecimal():
+        des=gatcharesult[4].split("t")
+        thenum=random.randint(int(des[0]),int(des[1]))
+    else:
+        thenum=gatcharesult[4]
+    giveitem(userys,gatcharesult[0],thenum)
+    return f"您獲得了{thenum}個{gatcharesult[2]}**{gatcharesult[0]}**！\n{gatcharesult[3]}\n"
+
+def do_positive(a):
+    if a>0:
+        return a
+    else:
+        return -a
+
+
 damagerec="csvfile\\damagerec.csv"
 item="csvfile\\item.csv"
 furfile="csvfile\\furcount.csv"
@@ -255,6 +324,7 @@ boss_hp=0
 hpfirst=0
 namechanged=False
 namechangeto=""
+heavenly=False
 
 
 class Rpg(Cog_Extension):
@@ -267,6 +337,7 @@ class Rpg(Cog_Extension):
             global hpfirst
             global namechanged
             global namechangeto
+            global heavenly
             textout=""
             killed=False
             critical=0
@@ -282,7 +353,12 @@ class Rpg(Cog_Extension):
             bkind=""
             blimit=0
             bcombo=""
+            bdone=True
             totaldamage=0
+            weaponchanged=False
+            maxda=[0]
+            weaponwhat=""
+            roll_dice=0
 
             history=doread("csvfile\\killed.csv")
             for a in history:
@@ -292,17 +368,17 @@ class Rpg(Cog_Extension):
             for el in args:
                 if el in item_id_file:
                     if find_item_id(el).startswith("O"):
-                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n本道具為兌換用道具，請以以下格式輸入：k!redeem {el}\n"
+                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n本道具為兌換用道具，請以以下格式輸入：k!redeem {el}\n\n"
                         continue
                     if el == "神之筆":
                         if args.index(el)+1 == len(args):
-                            textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n"
+                            textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
                             continue
                         else:
                             if args[args.index(el)+1].startswith("(") and args[args.index(el)+1].endswith(")"):
                                 god_name=args[args.index(el)+1].strip("(").strip(")")
                             else:
-                                textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n下一項並不是指定改名的名稱！請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n"
+                                textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n下一項並不是指定改名的名稱！請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
                                 continue
                     confirm=removeitem(ctx.author.id,el)
                     if confirm == True:
@@ -310,7 +386,7 @@ class Rpg(Cog_Extension):
                         itemused.append(find_item_id(el))
                         useitem=True
                     else:
-                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n{confirm}\n"
+                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n{confirm}\n\n"
 
             #B類道具讀取區
             canskipitem=[]
@@ -319,8 +395,8 @@ class Rpg(Cog_Extension):
                     itemdatB=find_item_value(item)
                     if bkind!="":
                         if item not in canskipitem:
-                            textout+=f"使用{itemdatB[2]}{itemdatB[0]}時發生錯誤！\n你不能同時使用兩種傷害保障型卷軸！\n"
-                            textout+=f"已返還{itemused.count(item)}個{itemdatB[2]}{itemdatB[0]}！\n"
+                            textout+=f"使用{itemdatB[2]}**{itemdatB[0]}**時發生錯誤！\n你不能同時使用兩種傷害保障型卷軸！\n"
+                            textout+=f"已返還{itemused.count(item)}個{itemdatB[2]}**{itemdatB[0]}**！\n\n"
                             giveitem(ctx.author.id,itemdatB[0],itemused.count(item))
                             itemused=[elem for elem in itemused if elem != item]
                             canskipitem.append(item)
@@ -329,20 +405,86 @@ class Rpg(Cog_Extension):
                         bkind=itemdatB[5]     #str #a #b
                         blimit=int(itemdatB[6])
                         bcombo=itemdatB[7]    #str #Y #N
+                        bdone=False
+
+
             #必定治療與必定攻擊衝突處理
             if bkind=="b" and (ifused("D1",itemused) or ifused("D4",itemused)):
                 if "D1" in itemused and not "D1" in canskipitem:
-                    textout+=f"使用[☆]鎖定時發生錯誤！\n你不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
-                    textout+=f"已返還{itemused.count('D1')}個[☆]鎖定！\n"
+                    textout+=f"使用[☆]**鎖定**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n\n"
+                    textout+=f"已返還{itemused.count('D1')}個[☆]**鎖定**！\n\n"
                     giveitem(ctx.author.id,"鎖定",itemused.count('D1'))
                     itemused=[elem for elem in itemused if elem != "D1"]
                     canskipitem.append("D1")
                 if "D4" in itemused and not "D4" in canskipitem:
-                    textout+=f"使用[☆☆]水平四方斬時發生錯誤！\n你不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
-                    textout+=f"已返還{itemused.count('D4')}個[☆☆]水平四方斬！\n"
+                    textout+=f"使用[☆☆]**水平四方斬**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
+                    textout+=f"已返還{itemused.count('D4')}個[☆☆]**水平四方斬**！\n\n"
                     giveitem(ctx.author.id,"水平四方斬",itemused.count('D4'))
                     itemused=[elem for elem in itemused if elem != "D4"]
                     canskipitem.append("D4")
+
+            #C區道具讀取區
+            for item in itemused:
+                if item.startswith("C"):
+                    itemdatC=find_item_value(item)
+                    if weaponchanged:
+                        if item not in canskipitem:
+                            textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用兩種武器變化型卷軸！\n"
+                            thatcount=itemused.count(item)
+                            if item==weaponwhat:
+                                thatcount-=1
+                            textout+=f"已返還{thatcount}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
+                            giveitem(ctx.author.id,itemdatC[0],thatcount)
+                            itemused=[elem for elem in itemused if elem != item]
+                            canskipitem.append(item)
+                        continue
+                    else:
+                        weapontype=itemdatC[5]
+                        if conflict(weapontype,bkind,itemused):
+                            textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
+                            textout+=f"已返還{itemused.count(item)}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
+                            giveitem(ctx.author.id,itemdatC[0],itemused.count(item))
+                            itemused=[elem for elem in itemused if elem != item]
+                            canskipitem.append(item)
+                            continue
+                        else:
+                            weaponchanged=True
+                            weaponnum=int((len(itemdatC)-5)/4)
+                            weapons=[]
+                            weaponwhat=item
+                            for a in range(0,weaponnum):
+                                weapons.append([itemdatC[6+(a*4)],itemdatC[7+(a*4)],itemdatC[8+(a*4)],itemdatC[9+(a*4)]])
+                                maxda.append(int(itemdatC[9+(a*4)]))
+                    if ifused("D3",itemused):
+                        if "D3" not in canskipitem:
+                            textout+=f"使用[☆☆]**抽牌**時發生錯誤！\n不能同時使用抽牌跟必定攻擊的武器變化型卷軸！\n"
+                            textout+=f"已返還{itemused.count('D3')}個[☆☆]**抽牌**！\n\n"
+                            giveitem(ctx.author.id,"抽牌",itemused.count('D3'))
+                            itemused=[elem for elem in itemused if elem != 'D3']
+                            canskipitem.append('D3')
+                        continue
+
+            if blimit !=0 and maxda!=[0] and max(maxda)<blimit:
+                theonlyb=[ele for ele in itemused if ele.startswith("B")]
+                thatonlyb=find_item_value(theonlyb[0])
+                textout+=f"使用{thatonlyb[2]}**{thatonlyb[0]}**時發生錯誤！\n武器變化型卷軸的傷害上限小於傷害保障型卷軸的傷害上限！\n"
+                textout+=f"已返還{itemused.count(theonlyb[0])}個{thatonlyb[2]}**{thatonlyb[0]}**！\n\n"
+                giveitem(ctx.author.id,thatonlyb[0],itemused.count(theonlyb[0]))
+                itemused=[elem for elem in itemused if elem != theonlyb[0]]
+                canskipitem.append(theonlyb[0])
+                bkind=""
+                blimit=0
+                bcombo=""
+
+            #天堂狛克召喚
+            if ifused("X1",itemused):
+                await ctx.send(f"{ctx.author.mention}\n你餵食了狛克天國草，狛克產生了劇烈的變化！\n*「說吧，讓我聆聽你的願望。」*\n天堂狛克降臨！\n特殊技能：血量超級厚，掉落道具。")
+                heavenly=True
+                boss_hp = random.randint(3000,5000)
+                hpfirst=boss_hp
+                doblank(damagerec)
+                namechanged=False
+                namechangeto=""
 
             #BOSS空血時完全重置
             if boss_hp == 0:
@@ -351,6 +493,7 @@ class Rpg(Cog_Extension):
                 hpfirst=boss_hp
                 namechanged=False
                 namechangeto=""
+                heavenly=False
                 if len(intkiller)%1000 ==0:
                     textout+="狛克從湖底甦醒了！\n"
                     textout+="特殊技能：被回血時回復5倍。\n"
@@ -375,11 +518,11 @@ class Rpg(Cog_Extension):
                 if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
                     boss_hp+=20
                 #隨機武器
-                WeaponResult=random.choice(rpglist)
-                main1=WeaponResult[0]
-                main2=WeaponResult[1]
-                down=int(WeaponResult[2])
-                up=int(WeaponResult[3])
+                if weaponchanged:
+                    WeaponResult=random.choice(weapons)
+                else:
+                    WeaponResult=random.choice(rpglist)
+                main1,main2,down,up=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
                 
                 if boss_hp<=0:
                     overkill=True
@@ -400,36 +543,82 @@ class Rpg(Cog_Extension):
                 if ifused("D4",itemused):
                     if atk<0:
                         continue
-                if bkind=="a" and bcombo=="Y":
-                    if atk<0:
-                        continue
-                if bkind=="a" and bcombo=="N":
-                    if atk<blimit:
-                        continue
-                if bkind=="b" and bcombo=="Y":
-                    if atk>=0:
-                        continue
-                if bkind=="b" and bcombo=="N":
-                    if -(atk)<blimit:
-                        continue
+                if not bdone:
+                    if bkind=="a" and bcombo=="Y":
+                        if atk<0:
+                            continue
+                    if bkind=="a" and bcombo=="N":
+                        if atk<blimit:
+                            bdone=True
+                            continue
+                    if bkind=="b" and bcombo=="Y":
+                        if atk>=0:
+                            continue
+                    if bkind=="b" and bcombo=="N":
+                        if -(atk)<blimit:
+                            bdone=True
+                            continue
 
                 #紀錄已造成的傷害(在此之下沒有continue)
                 totaldamage+=atk
 
                 #輸出格式
                 if atk==0:                                      #無傷害
-                    textout+=f'{main1}\n{main2}\n'
+                    weaponoutmes=f'{main1}\n{main2}\n'
                 elif atk<0:                                       #補血
                     if len(intkiller)%1000 ==0:
                         atk*=5
-                    textout+=f'{main1}{-(atk)}{main2}\n'
+                    weaponoutmes=f'{main1}{-(atk)}{main2}\n'
                     boss_hp-=atk
                 elif main2 == "a":                                #不顯示傷害的武器
-                    textout+=f'{main1}\n'
+                    weaponoutmes=f'{main1}\n'
                     boss_hp-=atk
                 else:
-                    textout+=f'{main1}{atk}{main2}\n'             #所有其他武器
+                    weaponoutmes=f'{main1}{atk}{main2}\n'             #所有其他武器
                     boss_hp-=atk
+                textout+=weaponoutmes
+
+                #E區道具讀取
+                for item in itemused:
+                    if item.startswith("E"):
+                        if item not in canskipitem:
+                            itemdatE=find_item_value(item)
+                            if itemdatE[5].isdecimal():
+                                repeated=int(itemdatE[5])
+                            else:
+                                wat=itemdatE[5].split("n")
+                                repeated=random.randint(int(wat[0]),int(wat[1]))
+                            combo+=repeated
+                            if item == "E6":
+                                if atk>=0:
+                                    textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(down))}"
+                                elif atk<0:
+                                    textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(up))}"
+                            elif item =="E9":
+                                if atk>=0:
+                                    textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(up))}"
+                                elif atk<0:
+                                    textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(down))}"
+                            else:
+                                while repeated>0:
+                                    eatk=random.randint(int(itemdatE[8]),int(itemdatE[9]))
+                                    readyy=f"{itemdatE[6]}{do_positive(eatk)}{itemdatE[7]}\n"
+                                    if item=="E1":
+                                        if atk>0 and ("真實" not in weaponoutmes):
+                                            atk+=eatk
+                                            textout+=readyy
+                                    elif item=="E2":
+                                        if atk<0:
+                                            atk+=eatk
+                                            textout+=readyy
+                                    elif item=="E3":
+                                        if atk>0 and "真實" in weaponoutmes:
+                                            atk+=eatk
+                                            textout+=readyy
+                                    else:
+                                        atk+=eatk
+                                        textout+=readyy
+                                    repeated-=1
 
                 #紀錄輸出
                 damagelist=doread(damagerec)
@@ -456,6 +645,9 @@ class Rpg(Cog_Extension):
                             itemdat=find_item_value(item)
                             lance+=int(itemdat[5])
                             counted=True
+                        if item == "C19":
+                            lance+=random.randint(8,12)
+                            counted=True
 
                 #連擊次數消耗
                 if lance >0 :
@@ -465,13 +657,18 @@ class Rpg(Cog_Extension):
                 if ifused("D3",itemused):
                     if atk >0:
                         critical=0
+
                 if bcombo=="Y":
                     if bkind=="a":
                         if totaldamage<blimit:
                             critical=0
+                        else:
+                            bdone=True
                     else:
                         if -(totaldamage)<blimit:
                             critical=0
+                        else:
+                            bdone=True
 
                 if critical <= 5 :
                     combo+=1
@@ -488,18 +685,26 @@ class Rpg(Cog_Extension):
 
             #剩餘血量&訊息印出===============================================================================
             if boss_hp > 0:
-                #textout+=f'狛克還有{boss_hp}點血量！\n'
-                if hpwas >= 500 and boss_hp < 500:
-                    textout+=f'狛克看起來有點虛弱！\n'
-                if hpwas >= 300 and boss_hp < 300:
-                    textout+=f'狛克看起來非常的虛弱！\n'
-                if hpwas >= 100 and boss_hp < 100:
-                    textout+=f'狛克看起來已經沒有力氣掙扎了！\n'
-                if hpwas <= 100 and boss_hp > 100:
-                    textout+=f'狛克他重新站起來了！\n'
-                if hpwas <= 1000 and boss_hp > 1000:
-                    textout+=f'狛克感到了前所未有的亢奮！\n'
-
+                if heavenly:
+                    if hpwas >= 2500 and boss_hp < 2500:
+                        textout+=f'狛克略顯疲態！\n'
+                    if hpwas >= 1000 and boss_hp < 1000:
+                        textout+=f'狛克面色蒼白！\n'
+                    if hpwas >= 300 and boss_hp < 300:
+                        textout+=f'狛克跪倒在地！\n'
+                    if hpwas <= 300 and boss_hp > 300:
+                        textout+=f'狛克他重新站起來了！\n'
+                else:
+                    if hpwas >= 500 and boss_hp < 500:
+                        textout+=f'狛克看起來有點虛弱！\n'
+                    if hpwas >= 300 and boss_hp < 300:
+                        textout+=f'狛克看起來非常的虛弱！\n'
+                    if hpwas >= 100 and boss_hp < 100:
+                        textout+=f'狛克看起來已經沒有力氣掙扎了！\n'
+                    if hpwas <= 100 and boss_hp > 100:
+                        textout+=f'狛克他重新站起來了！\n'
+                    if hpwas <= 1000 and boss_hp > 1000:
+                        textout+=f'狛克感到了前所未有的亢奮！\n'
             else:
                 killed=True
                 textout+=f'尾刀！狛克被變成了薩摩耶！\n'
@@ -526,6 +731,8 @@ class Rpg(Cog_Extension):
                 textout=textout.replace("狛克","千年狛克")
             if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
                 textout=textout.replace("狛克","百年狛克")
+            if heavenly:
+                textout=textout.replace("狛克","天堂狛克")
                 
             #傳送訊息
             if killed:
@@ -534,9 +741,17 @@ class Rpg(Cog_Extension):
                     textout=textout.replace("薩摩耶","竹節蟲")
                 else:
                     hahahalol=discord.File(random.choice(gifs["samoyed"]))
-                await ctx.send(f'{ctx.author.mention}\n{textout}',file=hahahalol)
+                if len(textout)<1900:
+                    await ctx.send(f'{ctx.author.mention}\n{textout}',file=hahahalol)
+                else:
+                    outfile=discord.File(createtxt(textout))
+                    await ctx.send(f'{ctx.author.mention}\n',file=outfile)
             else:
-                await ctx.send(f'{ctx.author.mention}\n{textout}')
+                if len(textout)<1900:
+                    await ctx.send(f'{ctx.author.mention}\n{textout}')
+                else:
+                    outfile=discord.File(createtxt(textout))
+                    await ctx.send(f'{ctx.author.mention}\n',file=outfile)
 
             secmes=""
             if killed:
@@ -552,23 +767,21 @@ class Rpg(Cog_Extension):
                     secmes+=f'{ctx.author.mention}\n恭喜！您是第{len(intkiller)-1}個把狛克變成薩摩耶的玩家！\n'
                     if len(intkiller) %1000 == 1:
                         giveitem(ctx.author.id,"銀令牌")
-                        secmes+=f'你獲得了銀令牌！\n'
+                        secmes+=f'你獲得了**銀令牌**！\n'
                         giveitem(mvp,"鐵令牌")
-                        secmes+=f'<@{mvp}>，你獲得了鐵令牌！\n'
+                        secmes+=f'<@{mvp}>，你獲得了**鐵令牌**！\n'
                     elif len(intkiller) %100 == 1:
                         giveitem(ctx.author.id,"鐵令牌")
-                        secmes+=f'你獲得了鐵令牌！\n'
+                        secmes+=f'你獲得了**鐵令牌**！\n'
                         giveitem(mvp,"木令牌")
-                        secmes+=f'<@{mvp}>，你獲得了木令牌！\n'
+                        secmes+=f'<@{mvp}>，你獲得了**木令牌**！\n'
                     elif len(intkiller) %10 == 1:
                         giveitem(ctx.author.id,"木令牌")
-                        secmes+=f'你獲得了木令牌！\n'
+                        secmes+=f'你獲得了**木令牌**！\n'
                 boss_hp=0
 
             #掉落寶物
             id=ctx.author.id
-            roll_dice=0
-
             roll_dice+=random.randint(1,100)
             while combo != 0:
                 roll_dice+=random.randint(1,20)
@@ -577,13 +790,25 @@ class Rpg(Cog_Extension):
             they_get_fur=False
             how_many=0
             mvp_get_it=False
+
+
             if killed:
-                if int(roll_dice/80)>0:
-                    they_get_it=True
-                    how_many=int(roll_dice/80)
-                    mvp_dice=random.randint(1,100)
-                    if mvp_dice>90:
+                if heavenly:
+                    for userys in damagename2:
+                        partofdam=round(damagenumber2[damagename2.index(userys)]/fulldamage*100/5)
+                        if partofdam!=0:
+                            secmes+=f'<@{userys}>\n'
+                        while partofdam != 0:
+                            partofdam-=1
+                            secmes+=f'{gat(userys)}\n'    #gat自帶給禮物功能
                         mvp_get_it=True
+                else:
+                    if int(roll_dice/80)>0:
+                        they_get_it=True
+                        how_many=int(roll_dice/80)
+                        mvp_dice=random.randint(1,100)
+                        if mvp_dice>90:
+                            mvp_get_it=True
             else:
                 if totaldamage >=0:
                     if int(roll_dice/98)>0 :
@@ -593,17 +818,30 @@ class Rpg(Cog_Extension):
                     if int(roll_dice/97)>0 :
                         they_get_fur=True
                         how_many=int(roll_dice/97)
-            if they_get_it:
-                secmes+=f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！\n'
-                givetooth(id,how_many)
-            if they_get_fur:
-                secmes+=f'{ctx.author.mention}\n您獲得了{how_many}撮雪狼毛！\n'
-                givefur(id,how_many)
-            if mvp_get_it:
-                secmes+=f'<@{mvp}>\n您獲得了1顆雪狼牙！\n'
-                givetooth(mvp,1)
+
+            if heavenly:
+                if they_get_it or they_get_fur:
+                    secmes+=f'{ctx.author.mention}\n'
+                    for a in range(0,how_many):
+                        secmes+=f'{gat(id,60)}\n'
+                if mvp_get_it:
+                    secmes+=f'<@{mvp}>\n{gat(mvp,70)}\n'
+            else:
+                if they_get_it:
+                    secmes+=f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！\n'
+                    givetooth(id,how_many)
+                if they_get_fur:
+                    secmes+=f'{ctx.author.mention}\n您獲得了{how_many}撮雪狼毛！\n'
+                    givefur(id,how_many)
+                if mvp_get_it:
+                    secmes+=f'<@{mvp}>\n您獲得了1顆雪狼牙！\n'
+                    givetooth(mvp,1)
             if secmes !="":
-                await ctx.send(f'{secmes}')
+                if len(secmes)<1900:
+                    await ctx.send(f'{secmes}')
+                else:
+                    outfileb=discord.File(createtxt(secmes))
+                    await ctx.send(file=outfileb)
         else:
             await ctx.send(f'本頻道不可使用此指令，或者沒有登錄此頻道。')
 
@@ -643,24 +881,38 @@ class Rpg(Cog_Extension):
             users.append(int(rawdata[0]))
         id=ctx.author.id
         if id in users:
-            available_tooth=int(itemrawdata[users.index(id)][1])
             if arg.isdecimal:
-                if available_tooth >= int(arg):
-                    available_tooth-=int(arg)
-                    itemrawdata[users.index(id)][1]=available_tooth
+                if int(arg)<=20:
                     turns=int(arg)
-                    outmes+=f"抽取{turns}次！\n"
-                    while turns != 0:
-                        itemrawdata[users.index(id)][2]+=f';(獎品)'
-                        turns-=1
-                        outmes+="你抽到了(獎品)！\n"
-                    with open(item,'w',encoding='utf-8') as opfile:
-                        for a in itemrawdata:
-                            opfile.writelines(f'{a[0]},{a[1]},{a[2]}\n')
-                    removeend(item)
-                    await ctx.send(f'{ctx.author.mention}\n{outmes}')
+                    ressult=removetooth(id,turns)
+                    if ressult==True:
+                        outmes+=f"抽取{turns}次！\n"
+                        setsumei=doread("csvfile\\itemdata.csv")
+                        onestar=[ele for ele in setsumei if ele[2]=="[☆]"]
+                        twostar=[ele for ele in setsumei if ele[2]=="[☆☆]"]
+                        threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]"]
+                        while turns != 0:
+                            turns-=1
+                            dice=random.randint(1,100)
+                            gatcharesult=[]
+                            if 0<dice<=75:
+                                gatcharesult=random.choice(onestar)
+                            elif 75<dice<=95:
+                                gatcharesult=random.choice(twostar)
+                            elif 95<dice<=100:
+                                gatcharesult=random.choice(threestar)
+                            if not gatcharesult[4].isdecimal():
+                                des=gatcharesult[4].split("t")
+                                thenum=random.randint(int(des[0]),int(des[1]))
+                            else:
+                                thenum=gatcharesult[4]
+                            giveitem(id,gatcharesult[0],thenum)
+                            outmes+=f"你抽到了{thenum}個{gatcharesult[2]}**{gatcharesult[0]}**！\n{gatcharesult[3]}\n\n"
+                        await ctx.send(f'{ctx.author.mention}\n{outmes}')
+                    else:
+                        await ctx.send(f'{ctx.author.mention}\n{ressult}')
                 else:
-                    await ctx.send(f'{ctx.author.mention}\n您似乎沒有足夠的雪狼牙呢-w-...')
+                    await ctx.send(f'{ctx.author.mention}\n為了以防字數爆炸，一次請不要超過20次呢-w-...')
             else:
                 await ctx.send(f'{ctx.author.mention}\n轉蛋次數請輸入整數-w-...')
         else:
@@ -682,14 +934,14 @@ class Rpg(Cog_Extension):
                                 await ctx.send(f'{ctx.author.mention}\n{theresult1}')
                             else:
                                 nankai=int(arg2)
-                                outmes+=f"兌換{nankai}個{arg1}！\n"
+                                outmes+=f"兌換{nankai}個**{arg1}**！\n"
                                 #開始抽取
                                 setsumei=doread("csvfile\\itemdata.csv")
                                 while nankai>0:
                                     resulting=O_redeem(redeem_item)
                                     for line in setsumei:
                                         if resulting == line[1]:
-                                            outmes+=f"你拿到了{line[2]}{line[0]}！\n{line[3]}\n"
+                                            outmes+=f"你拿到了{line[2]}{line[0]}！\n{line[3]}\n\n"
                                             theresult2=giveitem(ctx.author.id,line[0],int(line[4]))
                                             if theresult2 != True:
                                                 await ctx.send(f'{ctx.author.mention}\n{theresult2}')
@@ -735,6 +987,7 @@ class Rpg(Cog_Extension):
 
     @commands.command() 
     async def myitem(self,ctx):
+        myitemuser=ctx.author
         users=[]
         furusers=[]
         outmes=""
@@ -765,12 +1018,18 @@ class Rpg(Cog_Extension):
             for allitem in item_id_file:
                 if allitem in item_have:
                     if item_count[item_have.index(allitem)] !=0:
-                        outmes+=f"{find_item_value(find_item_id(allitem))[2]}{allitem}：{item_count[item_have.index(allitem)]}個\n"
-                        outmes+=f"{find_item_value(find_item_id(allitem))[3]}\n"
+                        outmes+=f"{find_item_value(find_item_id(allitem))[2]}**{allitem}**：{item_count[item_have.index(allitem)]}個\n"
+                        outmes+=f"{find_item_value(find_item_id(allitem))[3]}\n\n"
                         availableitem+=1
             if availableitem ==0:
                 outmes+="您目前沒有任何道具...-w-"
-            await ctx.send(f'{ctx.author.mention}\n{outmes}')
+            await ctx.send(f'{ctx.author.mention}\n您的道具資訊已經傳送到私訊了！')
+
+            if len(outmes)<1900:
+                await myitemuser.send(f'{ctx.author.mention}\n{outmes}')
+            else:
+                outfile=discord.File(createtxt(outmes))
+                await myitemuser.send(f'{ctx.author.mention}\n',file=outfile)
                     
         else:
             await ctx.send(f'{ctx.author.mention}\n您似乎什麼都沒有呢-w-...')
