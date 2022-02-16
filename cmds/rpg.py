@@ -279,9 +279,9 @@ def createtxt(mes):
 
 def gat(userys,up=0):
     setsumei=doread("csvfile\\itemdata.csv")
-    onestar=[ele for ele in setsumei if ele[2]=="[☆]"]
-    twostar=[ele for ele in setsumei if ele[2]=="[☆☆]"]
-    threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]"]
+    onestar=[ele for ele in setsumei if ele[2]=="[☆]" and not ele[1].startswith("D")]
+    twostar=[ele for ele in setsumei if ele[2]=="[☆☆]" and not ele[1].startswith("D")]
+    threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]" and not ele[1].startswith("D")]
     dice=up+random.randint(1,100-up)
     gatcharesult=[]
     if 0<dice<=75:
@@ -382,11 +382,11 @@ class Rpg(Cog_Extension):
                                 continue
                     confirm=removeitem(ctx.author.id,el)
                     if confirm == True:
-                        textout+=f"已使用{find_item_value(find_item_id(el))[2]}{el}！\n"
+                        textout+=f"已使用{find_item_value(find_item_id(el))[2]}**{el}**！\n"
                         itemused.append(find_item_id(el))
                         useitem=True
                     else:
-                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n{confirm}\n\n"
+                        textout+=f"使用{find_item_value(find_item_id(el))[2]}**{el}**時發生錯誤！\n{confirm}\n\n"
 
             #B類道具讀取區
             canskipitem=[]
@@ -500,9 +500,28 @@ class Rpg(Cog_Extension):
                 if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
                     textout+="狛克從山上躍下！\n"
                     textout+="特殊技能：每次被攻擊固定回復20點血量。\n"
+
+            #重生
+            if ifused("J1",itemused):
+                if heavenly:
+                    boss_hp = random.randint(3000,5000)
+                else:
+                    boss_hp = random.randint(500,1000)
+
+            #分離
+            for item in itemused:
+                if item=="J2":
+                    boss_hp=round(boss_hp/2)
+                    if boss_hp<1:
+                        boss_hp=1
             
             #紀錄原本的血量
             hpwas=boss_hp
+
+            #同生共死
+            if ifused("J3",itemused):
+                boss_hp = random.randint(200,300)
+                textout+="你不顧一切的拖著狛克一起跳下懸崖！\n"
             
             #A2,A3讀取區
             if ifused("A2",itemused):
@@ -513,7 +532,7 @@ class Rpg(Cog_Extension):
                 namechangeto=f"{god_name}"
 
             #傷害判定=============================================================================
-            while critical <= 5 :
+            while critical <= 5 and not ifused("J3",itemused):
                 #百年特效
                 if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
                     boss_hp+=20
@@ -708,13 +727,13 @@ class Rpg(Cog_Extension):
             else:
                 killed=True
                 textout+=f'尾刀！狛克被變成了薩摩耶！\n'
-                mvp=damagename[damagenumber.index(max(damagenumber))]
                 damagelist2=doread(damagerec)
                 damagename2=[]
                 damagenumber2=[]
                 for a in damagelist2:
                     damagename2.append(int(a[0]))
                     damagenumber2.append(int(a[1]))
+                mvp=damagename2[damagenumber2.index(max(damagenumber2))]
                 tr=damagename2.index(mvp)
                 fulldamage=0
                 for b in range(1,len(damagename2)):
@@ -888,9 +907,9 @@ class Rpg(Cog_Extension):
                     if ressult==True:
                         outmes+=f"抽取{turns}次！\n"
                         setsumei=doread("csvfile\\itemdata.csv")
-                        onestar=[ele for ele in setsumei if ele[2]=="[☆]"]
-                        twostar=[ele for ele in setsumei if ele[2]=="[☆☆]"]
-                        threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]"]
+                        onestar=[ele for ele in setsumei if ele[2]=="[☆]" and not ele[1].startswith("D")]
+                        twostar=[ele for ele in setsumei if ele[2]=="[☆☆]" and not ele[1].startswith("D")]
+                        threestar=[ele for ele in setsumei if ele[2]=="[☆☆☆]" and not ele[1].startswith("D")]
                         while turns != 0:
                             turns-=1
                             dice=random.randint(1,100)
