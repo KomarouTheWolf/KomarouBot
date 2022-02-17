@@ -254,6 +254,7 @@ def O_redeem(redeem_item_ID):
     elif redeem_item_ID == "O2":
         b="D5"
         return b
+
 def ifused(item,itemused):
     if item in itemused:
         return True
@@ -464,7 +465,7 @@ class Rpg(Cog_Extension):
                             canskipitem.append('D3')
                         continue
 
-            if blimit !=0 and maxda!=[0] and max(maxda)<blimit:
+            if blimit !=0 and maxda!=[0] and max(maxda)<blimit and bcombo=="N":
                 theonlyb=[ele for ele in itemused if ele.startswith("B")]
                 thatonlyb=find_item_value(theonlyb[0])
                 textout+=f"使用{thatonlyb[2]}**{thatonlyb[0]}**時發生錯誤！\n武器變化型卷軸的傷害上限小於傷害保障型卷軸的傷害上限！\n"
@@ -548,12 +549,9 @@ class Rpg(Cog_Extension):
 
                 #隨機傷害
                 if up == 0:
-                    atk='?'
+                    atk=0
                 else:
                     atk = random.randint(down,up)
-
-                if atk=='?':
-                    atk=0
                 
                 #傷害制限
                 if ifused("D1",itemused):
@@ -577,6 +575,25 @@ class Rpg(Cog_Extension):
                         if -(atk)<blimit:
                             bdone=True
                             continue
+
+                #F讀取
+                for item in itemused:
+                    if item.startswith("F"):
+                        itemdatF=find_item_value(item)
+                        changenum=float(itemdatF[7])
+                        if itemdatF[5]=="a" and atk>0:
+                            if itemdatF[6]=="a":
+                                atk+=int(changenum)
+                            elif itemdatF[6]=="m":
+                                atk*=int(changenum)
+                        elif itemdatF[5]=="n":
+                            if itemdatF[6]=="a":
+                                if atk<0:
+                                    atk-=int(changenum)
+                                elif atk>0:
+                                    atk+=int(changenum)
+                            elif itemdatF[6]=="m":
+                                atk=round(atk*changenum)
 
                 #紀錄已造成的傷害(在此之下沒有continue)
                 totaldamage+=atk
@@ -621,6 +638,21 @@ class Rpg(Cog_Extension):
                             else:
                                 while repeated>0:
                                     eatk=random.randint(int(itemdatE[8]),int(itemdatE[9]))
+
+                                    #F區
+                                    for itemF in itemused:
+                                        if itemF.startswith("F"):
+                                            itemdatF=find_item_value(itemF)
+                                            changenum=float(itemdatF[7])
+                                            if itemdatF[6]=="a":
+                                                if itemdatF[5]=="a" and eatk>0:
+                                                    eatk+=int(changenum)
+                                                elif itemdatF[5]=="n":
+                                                    if eatk<0:
+                                                        eatk-=int(changenum)
+                                                    elif eatk>0:
+                                                        eatk+=int(changenum)
+
                                     readyy=f"{itemdatE[6]}{do_positive(eatk)}{itemdatE[7]}\n"
                                     if item=="E1":
                                         if atk>0 and ("真實" not in weaponoutmes):
@@ -1105,6 +1137,31 @@ class Rpg(Cog_Extension):
                 outmes+=f"商品數量請輸入整數-w-..."
         else:
             outmes+=f"無法辨識！請確定商品編號正確！"
+        await ctx.send(f'{ctx.author.mention}\n{outmes}')
+
+    @commands.command()
+    async def index(self,ctx,arg1=""):
+        outmes=""
+        dicting={"A":"改名型卷軸","B":"傷害保障型卷軸","C":"武器變化類卷軸","D":"連擊型卷軸","E":"追擊類卷軸","F":"傷害變化型卷軸","J":"血量改寫型卷軸","O":"令牌","X":"召喚類卷軸"}
+        dicting2={"1":"[☆]道具","2":"[☆☆]道具","3":"[☆☆☆]道具"}
+        if arg1=="":
+            outmes+=f"輸入[k!index (種類代碼)]來查詢卷軸圖鑑！\n"
+            for everything in dicting:
+                outmes+=f"{everything}：{dicting[everything]}\n"
+            for everything in dicting2:
+                outmes+=f"{everything}：{dicting2[everything]}\n"
+        elif arg1 in dicting:
+            setsumei=doread("csvfile\\itemdata.csv")
+            itemlist=[ele for ele in setsumei if ele[1].startswith(arg1)]
+            for item in itemlist:
+                outmes+=f"{item[2]}**{item[0]}** (一單位：{item[4].replace('t','到')}個)\n{item[3]}\n\n"
+        elif arg1 in dicting2:
+            setsumei=doread("csvfile\\itemdata.csv")
+            itemlist=[ele for ele in setsumei if ele[2]==f"[{'☆'*int(arg1)}]"]
+            for item in itemlist:
+                outmes+=f"{item[2]}**{item[0]}** (一單位：{item[4].replace('t','到')}個)\n{item[3]}\n\n"
+        else:
+            outmes+=f"無法辨識！請確定代碼正確！"
         await ctx.send(f'{ctx.author.mention}\n{outmes}')
                     
 def setup(bot):
