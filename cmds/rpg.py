@@ -5,6 +5,7 @@ import json
 import random
 import csv
 import time
+import asyncio
 
 def numnum(a):
     try:
@@ -305,10 +306,35 @@ def do_positive(a):
     else:
         return -a
 
+def timeok(id):
+    timelist=doread(timenote)
+    timeppl=[]
+    timelast=[]
+    for a in timelist:
+        timeppl.append(int(a[0]))
+        timelast.append(float(a[1]))
+    if id in timeppl:
+        v=timeppl.index(id)
+        if time.time()-timelast[v]<10:
+            a=10-round(time.time()-timelast[v])
+            if a==0:
+                a=1
+            return a
+        else:
+            timelast[v]=time.time()
+            doblank(timenote)
+            for b in range(1,len(timeppl)):
+                dorecord(timenote,f"{timeppl[b]},{timelast[b]}")
+            return False
+    else:
+        dorecord(timenote,f"{id},{time.time()}")
+        return False
+
 
 damagerec="csvfile\\damagerec.csv"
 item="csvfile\\item.csv"
 furfile="csvfile\\furcount.csv"
+timenote="csvfile\\timelimit.csv"
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     gifs=json.load(jfile)
@@ -326,6 +352,7 @@ hpfirst=0
 namechanged=False
 namechangeto=""
 heavenly=False
+timelimited=True
 
 
 class Rpg(Cog_Extension):
@@ -333,566 +360,575 @@ class Rpg(Cog_Extension):
     @commands.command()
     async def hit(self,ctx,*args):
         if ctx.channel.id in available_channel:
-            #變數預設值
-            global boss_hp
-            global hpfirst
-            global namechanged
-            global namechangeto
-            global heavenly
-            textout=""
-            killed=False
-            critical=0
-            combo=0
-            intkiller=[]
-            hpwas=0
-            overkill=False
-            itemused=[]
-            useitem=False
-            counted=False
-            lance=0 #追擊
-            atk=0
-            bkind=""
-            blimit=0
-            bcombo=""
-            bdone=True
-            totaldamage=0
-            weaponchanged=False
-            maxda=[0]
-            weaponwhat=""
-            roll_dice=0
-
-            history=doread("csvfile\\killed.csv")
-            for a in history:
-                intkiller.append(int(a[0]))
-
-            #讀取使用的道具
-            for el in args:
-                if el in item_id_file:
-                    if find_item_id(el).startswith("O"):
-                        textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n本道具為兌換用道具，請以以下格式輸入：k!redeem {el}\n\n"
-                        continue
-                    if el == "神之筆":
-                        if args.index(el)+1 == len(args):
-                            textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
-                            continue
-                        else:
-                            if args[args.index(el)+1].startswith("(") and args[args.index(el)+1].endswith(")"):
-                                god_name=args[args.index(el)+1].strip("(").strip(")")
-                            else:
-                                textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n下一項並不是指定改名的名稱！請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
-                                continue
-                    confirm=removeitem(ctx.author.id,el)
-                    if confirm == True:
-                        textout+=f"已使用{find_item_value(find_item_id(el))[2]}**{el}**！\n"
-                        itemused.append(find_item_id(el))
-                        useitem=True
-                    else:
-                        textout+=f"使用{find_item_value(find_item_id(el))[2]}**{el}**時發生錯誤！\n{confirm}\n\n"
-
-            #B類道具讀取區
-            canskipitem=[]
-            for item in itemused:
-                if item.startswith("B"):
-                    itemdatB=find_item_value(item)
-                    if bkind!="":
-                        if item not in canskipitem:
-                            textout+=f"使用{itemdatB[2]}**{itemdatB[0]}**時發生錯誤！\n你不能同時使用兩種傷害保障型卷軸！\n"
-                            textout+=f"已返還{itemused.count(item)}個{itemdatB[2]}**{itemdatB[0]}**！\n\n"
-                            giveitem(ctx.author.id,itemdatB[0],itemused.count(item))
-                            itemused=[elem for elem in itemused if elem != item]
-                            canskipitem.append(item)
-                        continue
-                    else:
-                        bkind=itemdatB[5]     #str #a #b
-                        blimit=int(itemdatB[6])
-                        bcombo=itemdatB[7]    #str #Y #N
-                        bdone=False
-
-
-            #必定治療與必定攻擊衝突處理
-            if bkind=="b" and (ifused("D1",itemused) or ifused("D4",itemused)):
-                if "D1" in itemused and not "D1" in canskipitem:
-                    textout+=f"使用[☆]**鎖定**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n\n"
-                    textout+=f"已返還{itemused.count('D1')}個[☆]**鎖定**！\n\n"
-                    giveitem(ctx.author.id,"鎖定",itemused.count('D1'))
-                    itemused=[elem for elem in itemused if elem != "D1"]
-                    canskipitem.append("D1")
-                if "D4" in itemused and not "D4" in canskipitem:
-                    textout+=f"使用[☆☆]**水平四方斬**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
-                    textout+=f"已返還{itemused.count('D4')}個[☆☆]**水平四方斬**！\n\n"
-                    giveitem(ctx.author.id,"水平四方斬",itemused.count('D4'))
-                    itemused=[elem for elem in itemused if elem != "D4"]
-                    canskipitem.append("D4")
-
-            #C區道具讀取區
-            for item in itemused:
-                if item.startswith("C"):
-                    itemdatC=find_item_value(item)
-                    if weaponchanged:
-                        if item not in canskipitem:
-                            textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用兩種武器變化型卷軸！\n"
-                            thatcount=itemused.count(item)
-                            if item==weaponwhat:
-                                thatcount-=1
-                            textout+=f"已返還{thatcount}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
-                            giveitem(ctx.author.id,itemdatC[0],thatcount)
-                            itemused=[elem for elem in itemused if elem != item]
-                            canskipitem.append(item)
-                        continue
-                    else:
-                        weapontype=itemdatC[5]
-                        if conflict(weapontype,bkind,itemused):
-                            textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
-                            textout+=f"已返還{itemused.count(item)}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
-                            giveitem(ctx.author.id,itemdatC[0],itemused.count(item))
-                            itemused=[elem for elem in itemused if elem != item]
-                            canskipitem.append(item)
-                            continue
-                        else:
-                            weaponchanged=True
-                            weaponnum=int((len(itemdatC)-5)/4)
-                            weapons=[]
-                            weaponwhat=item
-                            for a in range(0,weaponnum):
-                                weapons.append([itemdatC[6+(a*4)],itemdatC[7+(a*4)],itemdatC[8+(a*4)],itemdatC[9+(a*4)]])
-                                maxda.append(int(itemdatC[9+(a*4)]))
-                    if ifused("D3",itemused):
-                        if "D3" not in canskipitem:
-                            textout+=f"使用[☆☆]**抽牌**時發生錯誤！\n不能同時使用抽牌跟必定攻擊的武器變化型卷軸！\n"
-                            textout+=f"已返還{itemused.count('D3')}個[☆☆]**抽牌**！\n\n"
-                            giveitem(ctx.author.id,"抽牌",itemused.count('D3'))
-                            itemused=[elem for elem in itemused if elem != 'D3']
-                            canskipitem.append('D3')
-                        continue
-
-            if blimit !=0 and maxda!=[0] and max(maxda)<blimit and bcombo=="N":
-                theonlyb=[ele for ele in itemused if ele.startswith("B")]
-                thatonlyb=find_item_value(theonlyb[0])
-                textout+=f"使用{thatonlyb[2]}**{thatonlyb[0]}**時發生錯誤！\n武器變化型卷軸的傷害上限小於傷害保障型卷軸的傷害上限！\n"
-                textout+=f"已返還{itemused.count(theonlyb[0])}個{thatonlyb[2]}**{thatonlyb[0]}**！\n\n"
-                giveitem(ctx.author.id,thatonlyb[0],itemused.count(theonlyb[0]))
-                itemused=[elem for elem in itemused if elem != theonlyb[0]]
-                canskipitem.append(theonlyb[0])
+            timeado=timeok(ctx.author.id)
+            if timelimited and timeado:
+                notcoldmes = await ctx.send(f'{ctx.author.mention}\n本指令有10秒冷卻！您還有{timeado}秒！')
+                await asyncio.sleep(3)
+                await notcoldmes.delete()
+            else:
+                #變數預設值
+                global boss_hp
+                global hpfirst
+                global namechanged
+                global namechangeto
+                global heavenly
+                textout=""
+                killed=False
+                critical=0
+                combo=0
+                intkiller=[]
+                hpwas=0
+                overkill=False
+                itemused=[]
+                useitem=False
+                counted=False
+                lance=0 #追擊
+                atk=0
                 bkind=""
                 blimit=0
                 bcombo=""
+                bdone=True
+                totaldamage=0
+                weaponchanged=False
+                maxda=[0]
+                weaponwhat=""
+                roll_dice=0
 
-            #天堂狛克召喚
-            if ifused("X1",itemused):
-                await ctx.send(f"{ctx.author.mention}\n你餵食了狛克天國草，狛克產生了劇烈的變化！\n*「說吧，讓我聆聽你的願望。」*\n天堂狛克降臨！\n特殊技能：血量超級厚，掉落道具。")
-                heavenly=True
-                boss_hp = random.randint(3000,5000)
-                hpfirst=boss_hp
-                doblank(damagerec)
-                namechanged=False
-                namechangeto=""
-
-            #BOSS空血時完全重置
-            if boss_hp == 0:
-                boss_hp = random.randint(500,1000)
-                doblank(damagerec)
-                hpfirst=boss_hp
-                namechanged=False
-                namechangeto=""
-                heavenly=False
-                if len(intkiller)%1000 ==0:
-                    textout+="狛克從湖底甦醒了！\n"
-                    textout+="特殊技能：被回血時回復5倍。\n"
-                if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
-                    textout+="狛克從山上躍下！\n"
-                    textout+="特殊技能：每次被攻擊固定回復20點血量。\n"
-
-            #重生
-            if ifused("J1",itemused):
-                if heavenly:
-                    boss_hp = random.randint(3000,5000)
-                else:
-                    boss_hp = random.randint(500,1000)
-
-            #分離
-            for item in itemused:
-                if item=="J2":
-                    boss_hp=round(boss_hp/2)
-                    if boss_hp<1:
-                        boss_hp=1
-            
-            #紀錄原本的血量
-            hpwas=boss_hp
-
-            #同生共死
-            if ifused("J3",itemused):
-                boss_hp = random.randint(200,300)
-                textout+="你不顧一切的拖著狛克一起跳下懸崖！\n"
-            
-            #A2,A3讀取區
-            if ifused("A2",itemused):
-                namechanged=True
-                namechangeto="威爾森"
-            if ifused("A3",itemused):
-                namechanged=True
-                namechangeto=f"{god_name}"
-
-            #傷害判定=============================================================================
-            while critical <= 5 and not ifused("J3",itemused):
-                #百年特效
-                if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
-                    boss_hp+=20
-                #隨機武器
-                if weaponchanged:
-                    WeaponResult=random.choice(weapons)
-                else:
-                    WeaponResult=random.choice(rpglist)
-                main1,main2,down,up=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
-                
-                if boss_hp<=0:
-                    overkill=True
-
-                #隨機傷害
-                if up == 0:
-                    atk=0
-                else:
-                    atk = random.randint(down,up)
-                
-                #傷害制限
-                if ifused("D1",itemused):
-                    if atk<75:
-                        continue
-                if ifused("D4",itemused):
-                    if atk<0:
-                        continue
-                if not bdone:
-                    if bkind=="a" and bcombo=="Y":
-                        if atk<0:
-                            continue
-                    if bkind=="a" and bcombo=="N":
-                        if atk<blimit:
-                            bdone=True
-                            continue
-                    if bkind=="b" and bcombo=="Y":
-                        if atk>=0:
-                            continue
-                    if bkind=="b" and bcombo=="N":
-                        if -(atk)<blimit:
-                            bdone=True
-                            continue
-
-                #F讀取
-                for item in itemused:
-                    if item.startswith("F"):
-                        itemdatF=find_item_value(item)
-                        changenum=float(itemdatF[7])
-                        if itemdatF[5]=="a" and atk>0:
-                            if itemdatF[6]=="a":
-                                atk+=int(changenum)
-                            elif itemdatF[6]=="m":
-                                atk*=int(changenum)
-                        elif itemdatF[5]=="n":
-                            if itemdatF[6]=="a":
-                                if atk<0:
-                                    atk-=int(changenum)
-                                elif atk>0:
-                                    atk+=int(changenum)
-                            elif itemdatF[6]=="m":
-                                atk=round(atk*changenum)
-
-                #紀錄已造成的傷害(在此之下沒有continue)
-                totaldamage+=atk
-
-                #輸出格式
-                if atk==0:                                      #無傷害
-                    weaponoutmes=f'{main1}\n{main2}\n'
-                elif atk<0:                                       #補血
-                    if len(intkiller)%1000 ==0:
-                        atk*=5
-                    weaponoutmes=f'{main1}{-(atk)}{main2}\n'
-                    boss_hp-=atk
-                elif main2 == "a":                                #不顯示傷害的武器
-                    weaponoutmes=f'{main1}\n'
-                    boss_hp-=atk
-                else:
-                    weaponoutmes=f'{main1}{atk}{main2}\n'             #所有其他武器
-                    boss_hp-=atk
-                textout+=weaponoutmes
-
-                #E區道具讀取
-                for item in itemused:
-                    if item.startswith("E"):
-                        if item not in canskipitem:
-                            itemdatE=find_item_value(item)
-                            if itemdatE[5].isdecimal():
-                                repeated=int(itemdatE[5])
-                            else:
-                                wat=itemdatE[5].split("n")
-                                repeated=random.randint(int(wat[0]),int(wat[1]))
-                            combo+=repeated
-                            if item == "E6":
-                                if atk>=0:
-                                    textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(down))}"
-                                elif atk<0:
-                                    textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(up))}"
-                            elif item =="E9":
-                                if atk>=0:
-                                    textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(up))}"
-                                elif atk<0:
-                                    textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(down))}"
-                            else:
-                                while repeated>0:
-                                    eatk=random.randint(int(itemdatE[8]),int(itemdatE[9]))
-
-                                    #F區
-                                    for itemF in itemused:
-                                        if itemF.startswith("F"):
-                                            itemdatF=find_item_value(itemF)
-                                            changenum=float(itemdatF[7])
-                                            if itemdatF[6]=="a":
-                                                if itemdatF[5]=="a" and eatk>0:
-                                                    eatk+=int(changenum)
-                                                elif itemdatF[5]=="n":
-                                                    if eatk<0:
-                                                        eatk-=int(changenum)
-                                                    elif eatk>0:
-                                                        eatk+=int(changenum)
-
-                                    readyy=f"{itemdatE[6]}{do_positive(eatk)}{itemdatE[7]}\n"
-                                    if item=="E1":
-                                        if atk>0 and ("真實" not in weaponoutmes):
-                                            atk+=eatk
-                                            textout+=readyy
-                                    elif item=="E2":
-                                        if atk<0:
-                                            atk+=eatk
-                                            textout+=readyy
-                                    elif item=="E3":
-                                        if atk>0 and "真實" in weaponoutmes:
-                                            atk+=eatk
-                                            textout+=readyy
-                                    else:
-                                        atk+=eatk
-                                        textout+=readyy
-                                    repeated-=1
-
-                #紀錄輸出
-                damagelist=doread(damagerec)
-                damagename=[]
-                damagenumber=[]
-                for a in damagelist:
-                    damagename.append(int(a[0]))
-                    damagenumber.append(int(a[1]))
-                if ctx.author.id in damagename:
-                    v=damagename.index(ctx.author.id)
-                    damagenumber[v]+=atk
-                    doblank(damagerec)
-                    for b in range(1,len(damagename)):
-                        dorecord(damagerec,f"{damagename[b]},{damagenumber[b]}")
-                else:
-                    dorecord(damagerec,f"{ctx.author.id},{atk}")
-
-                #爆擊判定
-                critical=random.randint(1,100)
-
-                if not counted:
-                    for item in itemused:
-                        if item.startswith("D"):
-                            itemdat=find_item_value(item)
-                            lance+=int(itemdat[5])
-                            counted=True
-                        if item == "C19":
-                            lance+=random.randint(8,12)
-                            counted=True
-
-                #連擊次數消耗
-                if lance >0 :
-                    lance-=1
-                    critical=0
-                #無限連擊類檢定
-                if ifused("D3",itemused):
-                    if atk >0:
-                        critical=0
-
-                if bcombo=="Y":
-                    if bkind=="a":
-                        if totaldamage<blimit:
-                            critical=0
-                        else:
-                            bdone=True
-                    else:
-                        if -(totaldamage)<blimit:
-                            critical=0
-                        else:
-                            bdone=True
-
-                if critical <= 5 :
-                    combo+=1
-                    if overkill:
-                        textout+="鞭屍！"
-                    else:
-                        if combo%3==1:
-                            textout+="緊接著"
-                        elif combo%3==2:
-                            textout+="然後"
-                        else:
-                            textout+="再來"
-                
-
-            #剩餘血量&訊息印出===============================================================================
-            if boss_hp > 0:
-                if heavenly:
-                    if hpwas >= 2500 and boss_hp < 2500:
-                        textout+=f'狛克略顯疲態！\n'
-                    if hpwas >= 1000 and boss_hp < 1000:
-                        textout+=f'狛克面色蒼白！\n'
-                    if hpwas >= 300 and boss_hp < 300:
-                        textout+=f'狛克跪倒在地！\n'
-                    if hpwas <= 300 and boss_hp > 300:
-                        textout+=f'狛克他重新站起來了！\n'
-                else:
-                    if hpwas >= 500 and boss_hp < 500:
-                        textout+=f'狛克看起來有點虛弱！\n'
-                    if hpwas >= 300 and boss_hp < 300:
-                        textout+=f'狛克看起來非常的虛弱！\n'
-                    if hpwas >= 100 and boss_hp < 100:
-                        textout+=f'狛克看起來已經沒有力氣掙扎了！\n'
-                    if hpwas <= 100 and boss_hp > 100:
-                        textout+=f'狛克他重新站起來了！\n'
-                    if hpwas <= 1000 and boss_hp > 1000:
-                        textout+=f'狛克感到了前所未有的亢奮！\n'
-            else:
-                killed=True
-                textout+=f'尾刀！狛克被變成了薩摩耶！\n'
-                damagelist2=doread(damagerec)
-                damagename2=[]
-                damagenumber2=[]
-                for a in damagelist2:
-                    damagename2.append(int(a[0]))
-                    damagenumber2.append(int(a[1]))
-                mvp=damagename2[damagenumber2.index(max(damagenumber2))]
-                tr=damagename2.index(mvp)
-                fulldamage=0
-                for b in range(1,len(damagename2)):
-                    fulldamage+=damagenumber2[b]
-                partofhp=round(damagenumber2[tr]/fulldamage*100,1)
-                textout+=f'本次BOSS輸出之MVP為<@{mvp}>，輸出率為{partofhp}%\n'
-
-            #改名
-            if ifused("A1",itemused):
-                textout=textout.replace("狛克","哈庫瑪瑪塌塌").replace("你","狛克").replace("哈庫瑪瑪塌塌","你")
-            if namechanged:
-                textout=textout.replace("狛克",f"{namechangeto}")
-            if len(intkiller)%1000 ==0:
-                textout=textout.replace("狛克","千年狛克")
-            if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
-                textout=textout.replace("狛克","百年狛克")
-            if heavenly:
-                textout=textout.replace("狛克","天堂狛克")
-                
-            #傳送訊息
-            if killed:
-                if namechangeto =="威爾森":
-                    hahahalol=discord.File("bug.gif")
-                    textout=textout.replace("薩摩耶","竹節蟲")
-                else:
-                    hahahalol=discord.File(random.choice(gifs["samoyed"]))
-                if len(textout)<1900:
-                    await ctx.send(f'{ctx.author.mention}\n{textout}',file=hahahalol)
-                else:
-                    outfile=discord.File(createtxt(textout))
-                    await ctx.send(f'{ctx.author.mention}\n',file=outfile)
-            else:
-                if len(textout)<1900:
-                    await ctx.send(f'{ctx.author.mention}\n{textout}')
-                else:
-                    outfile=discord.File(createtxt(textout))
-                    await ctx.send(f'{ctx.author.mention}\n',file=outfile)
-
-            secmes=""
-            if killed:
-                intkiller=[]
-                dorecord("csvfile\\killed.csv",ctx.author.id)
                 history=doread("csvfile\\killed.csv")
                 for a in history:
                     intkiller.append(int(a[0]))
-                userkills=intkiller.count(ctx.author.id)
-                if userkills %5 == 0 and userkills != 0:
-                    secmes+=f'{ctx.author.mention}\n恭喜！您已經把狛克變成薩摩耶{userkills}次！\n'
-                if len(intkiller) %10 == 1:
-                    secmes+=f'{ctx.author.mention}\n恭喜！您是第{len(intkiller)-1}個把狛克變成薩摩耶的玩家！\n'
-                    if len(intkiller) %1000 == 1:
-                        giveitem(ctx.author.id,"銀令牌")
-                        secmes+=f'你獲得了**銀令牌**！\n'
-                        giveitem(mvp,"鐵令牌")
-                        secmes+=f'<@{mvp}>，你獲得了**鐵令牌**！\n'
-                    elif len(intkiller) %100 == 1:
-                        giveitem(ctx.author.id,"鐵令牌")
-                        secmes+=f'你獲得了**鐵令牌**！\n'
-                        giveitem(mvp,"木令牌")
-                        secmes+=f'<@{mvp}>，你獲得了**木令牌**！\n'
-                    elif len(intkiller) %10 == 1:
-                        giveitem(ctx.author.id,"木令牌")
-                        secmes+=f'你獲得了**木令牌**！\n'
-                boss_hp=0
 
-            #掉落寶物
-            id=ctx.author.id
-            roll_dice+=random.randint(1,100)
-            while combo != 0:
-                roll_dice+=random.randint(1,20)
-                combo-=1
-            they_get_it=False
-            they_get_fur=False
-            how_many=0
-            mvp_get_it=False
+                #讀取使用的道具
+                for el in args:
+                    if el in item_id_file:
+                        if find_item_id(el).startswith("O"):
+                            textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n本道具為兌換用道具，請以以下格式輸入：k!redeem {el}\n\n"
+                            continue
+                        if el == "神之筆":
+                            if args.index(el)+1 == len(args):
+                                textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
+                                continue
+                            else:
+                                if args[args.index(el)+1].startswith("(") and args[args.index(el)+1].endswith(")"):
+                                    god_name=args[args.index(el)+1].strip("(").strip(")")
+                                else:
+                                    textout+=f"使用{find_item_value(find_item_id(el))[2]}{el}時發生錯誤！\n下一項並不是指定改名的名稱！請以以下格式輸入：k!hit 神之筆 (想要改變的暱稱)\n\n"
+                                    continue
+                        confirm=removeitem(ctx.author.id,el)
+                        if confirm == True:
+                            textout+=f"已使用{find_item_value(find_item_id(el))[2]}**{el}**！\n"
+                            itemused.append(find_item_id(el))
+                            useitem=True
+                        else:
+                            textout+=f"使用{find_item_value(find_item_id(el))[2]}**{el}**時發生錯誤！\n{confirm}\n\n"
+
+                #B類道具讀取區
+                canskipitem=[]
+                for item in itemused:
+                    if item.startswith("B"):
+                        itemdatB=find_item_value(item)
+                        if bkind!="":
+                            if item not in canskipitem:
+                                textout+=f"使用{itemdatB[2]}**{itemdatB[0]}**時發生錯誤！\n你不能同時使用兩種傷害保障型卷軸！\n"
+                                textout+=f"已返還{itemused.count(item)}個{itemdatB[2]}**{itemdatB[0]}**！\n\n"
+                                giveitem(ctx.author.id,itemdatB[0],itemused.count(item))
+                                itemused=[elem for elem in itemused if elem != item]
+                                canskipitem.append(item)
+                            continue
+                        else:
+                            bkind=itemdatB[5]     #str #a #b
+                            blimit=int(itemdatB[6])
+                            bcombo=itemdatB[7]    #str #Y #N
+                            bdone=False
 
 
-            if killed:
+                #必定治療與必定攻擊衝突處理
+                if bkind=="b" and (ifused("D1",itemused) or ifused("D4",itemused)):
+                    if "D1" in itemused and not "D1" in canskipitem:
+                        textout+=f"使用[☆]**鎖定**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n\n"
+                        textout+=f"已返還{itemused.count('D1')}個[☆]**鎖定**！\n\n"
+                        giveitem(ctx.author.id,"鎖定",itemused.count('D1'))
+                        itemused=[elem for elem in itemused if elem != "D1"]
+                        canskipitem.append("D1")
+                    if "D4" in itemused and not "D4" in canskipitem:
+                        textout+=f"使用[☆☆]**水平四方斬**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
+                        textout+=f"已返還{itemused.count('D4')}個[☆☆]**水平四方斬**！\n\n"
+                        giveitem(ctx.author.id,"水平四方斬",itemused.count('D4'))
+                        itemused=[elem for elem in itemused if elem != "D4"]
+                        canskipitem.append("D4")
+
+                #C區道具讀取區
+                for item in itemused:
+                    if item.startswith("C"):
+                        itemdatC=find_item_value(item)
+                        if weaponchanged:
+                            if item not in canskipitem:
+                                textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用兩種武器變化型卷軸！\n"
+                                thatcount=itemused.count(item)
+                                if item==weaponwhat:
+                                    thatcount-=1
+                                textout+=f"已返還{thatcount}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
+                                giveitem(ctx.author.id,itemdatC[0],thatcount)
+                                itemused=[elem for elem in itemused if elem != item]
+                                canskipitem.append(item)
+                            continue
+                        else:
+                            weapontype=itemdatC[5]
+                            if conflict(weapontype,bkind,itemused):
+                                textout+=f"使用{itemdatC[2]}**{itemdatC[0]}**時發生錯誤！\n不能同時使用必定回復效果卷軸與必定攻擊效果卷軸！\n"
+                                textout+=f"已返還{itemused.count(item)}個{itemdatC[2]}**{itemdatC[0]}**！\n\n"
+                                giveitem(ctx.author.id,itemdatC[0],itemused.count(item))
+                                itemused=[elem for elem in itemused if elem != item]
+                                canskipitem.append(item)
+                                continue
+                            else:
+                                weaponchanged=True
+                                weaponnum=int((len(itemdatC)-5)/4)
+                                weapons=[]
+                                weaponwhat=item
+                                for a in range(0,weaponnum):
+                                    weapons.append([itemdatC[6+(a*4)],itemdatC[7+(a*4)],itemdatC[8+(a*4)],itemdatC[9+(a*4)]])
+                                    maxda.append(int(itemdatC[9+(a*4)]))
+                        if ifused("D3",itemused):
+                            if "D3" not in canskipitem:
+                                textout+=f"使用[☆☆]**抽牌**時發生錯誤！\n不能同時使用抽牌跟必定攻擊的武器變化型卷軸！\n"
+                                textout+=f"已返還{itemused.count('D3')}個[☆☆]**抽牌**！\n\n"
+                                giveitem(ctx.author.id,"抽牌",itemused.count('D3'))
+                                itemused=[elem for elem in itemused if elem != 'D3']
+                                canskipitem.append('D3')
+                            continue
+
+                if blimit !=0 and maxda!=[0] and max(maxda)<blimit and bcombo=="N":
+                    theonlyb=[ele for ele in itemused if ele.startswith("B")]
+                    thatonlyb=find_item_value(theonlyb[0])
+                    textout+=f"使用{thatonlyb[2]}**{thatonlyb[0]}**時發生錯誤！\n武器變化型卷軸的傷害上限小於傷害保障型卷軸的傷害上限！\n"
+                    textout+=f"已返還{itemused.count(theonlyb[0])}個{thatonlyb[2]}**{thatonlyb[0]}**！\n\n"
+                    giveitem(ctx.author.id,thatonlyb[0],itemused.count(theonlyb[0]))
+                    itemused=[elem for elem in itemused if elem != theonlyb[0]]
+                    canskipitem.append(theonlyb[0])
+                    bkind=""
+                    blimit=0
+                    bcombo=""
+
+                #天堂狛克召喚
+                if ifused("X1",itemused):
+                    await ctx.send(f"{ctx.author.mention}\n你餵食了狛克天國草，狛克產生了劇烈的變化！\n*「說吧，讓我聆聽你的願望。」*\n天堂狛克降臨！\n特殊技能：血量超級厚，掉落道具。")
+                    heavenly=True
+                    boss_hp = random.randint(3000,5000)
+                    hpfirst=boss_hp
+                    doblank(damagerec)
+                    namechanged=False
+                    namechangeto=""
+
+                #BOSS空血時完全重置
+                if boss_hp == 0:
+                    boss_hp = random.randint(500,1000)
+                    doblank(damagerec)
+                    hpfirst=boss_hp
+                    namechanged=False
+                    namechangeto=""
+                    heavenly=False
+                    if len(intkiller)%1000 ==0:
+                        textout+="狛克從湖底甦醒了！\n"
+                        textout+="特殊技能：被回血時回復5倍。\n"
+                    if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
+                        textout+="狛克從山上躍下！\n"
+                        textout+="特殊技能：每次被攻擊固定回復20點血量。\n"
+
+                #重生
+                if ifused("J1",itemused):
+                    if heavenly:
+                        boss_hp = random.randint(3000,5000)
+                    else:
+                        boss_hp = random.randint(500,1000)
+
+                #分離
+                for item in itemused:
+                    if item=="J2":
+                        boss_hp=round(boss_hp/2)
+                        if boss_hp<1:
+                            boss_hp=1
+                
+                #紀錄原本的血量
+                hpwas=boss_hp
+
+                #同生共死
+                if ifused("J3",itemused):
+                    boss_hp = random.randint(200,300)
+                    textout+="你不顧一切的拖著狛克一起跳下懸崖！\n"
+                
+                #A2,A3讀取區
+                if ifused("A2",itemused):
+                    namechanged=True
+                    namechangeto="威爾森"
+                if ifused("A3",itemused):
+                    namechanged=True
+                    namechangeto=f"{god_name}"
+
+                #傷害判定=============================================================================
+                while critical <= 5 and not ifused("J3",itemused):
+                    #百年特效
+                    if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
+                        boss_hp+=20
+                    #隨機武器
+                    if weaponchanged:
+                        WeaponResult=random.choice(weapons)
+                    else:
+                        WeaponResult=random.choice(rpglist)
+                    main1,main2,down,up=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
+                    
+                    if boss_hp<=0:
+                        overkill=True
+
+                    #隨機傷害
+                    if up == 0:
+                        atk=0
+                    else:
+                        atk = random.randint(down,up)
+                    
+                    #傷害制限
+                    if ifused("D1",itemused):
+                        if atk<75:
+                            continue
+                    if ifused("D4",itemused):
+                        if atk<0:
+                            continue
+                    if not bdone:
+                        if bkind=="a" and bcombo=="Y":
+                            if atk<0:
+                                continue
+                        if bkind=="a" and bcombo=="N":
+                            if atk<blimit:
+                                continue
+                            bdone=True
+                        if bkind=="b" and bcombo=="Y":
+                            if atk>=0:
+                                continue
+                        if bkind=="b" and bcombo=="N":
+                            if -(atk)<blimit:
+                                continue
+                            bdone=True
+
+                    #F讀取
+                    for item in itemused:
+                        if item.startswith("F"):
+                            itemdatF=find_item_value(item)
+                            changenum=float(itemdatF[7])
+                            if itemdatF[5]=="a" and atk>0:
+                                if itemdatF[6]=="a":
+                                    atk+=int(changenum)
+                                elif itemdatF[6]=="m":
+                                    atk*=int(changenum)
+                            elif itemdatF[5]=="n":
+                                if itemdatF[6]=="a":
+                                    if atk<0:
+                                        atk-=int(changenum)
+                                    elif atk>0:
+                                        atk+=int(changenum)
+                                elif itemdatF[6]=="m":
+                                    atk=round(atk*changenum)
+
+                    #紀錄已造成的傷害(在此之下沒有continue)
+                    totaldamage+=atk
+
+                    #輸出格式
+                    if atk==0:                                      #無傷害
+                        weaponoutmes=f'{main1}\n{main2}\n'
+                    elif atk<0:                                       #補血
+                        if len(intkiller)%1000 ==0:
+                            atk*=5
+                        weaponoutmes=f'{main1}{-(atk)}{main2}\n'
+                        boss_hp-=atk
+                    elif main2 == "a":                                #不顯示傷害的武器
+                        weaponoutmes=f'{main1}\n'
+                        boss_hp-=atk
+                    else:
+                        weaponoutmes=f'{main1}{atk}{main2}\n'             #所有其他武器
+                        boss_hp-=atk
+                    textout+=weaponoutmes
+
+                    originatk=atk
+
+                    #E區道具讀取
+                    for item in itemused:
+                        if item.startswith("E"):
+                            if item not in canskipitem:
+                                itemdatE=find_item_value(item)
+                                if itemdatE[5].isdecimal():
+                                    repeated=int(itemdatE[5])
+                                else:
+                                    wat=itemdatE[5].split("n")
+                                    repeated=random.randint(int(wat[0]),int(wat[1]))
+                                combo+=repeated
+                                if item == "E6":
+                                    if atk>=0:
+                                        textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(down))}"
+                                    elif atk<0:
+                                        textout+=f"影子模仿了你的行動！{weaponoutmes.replace('你','影子').replace(str(atk),str(up))}"
+                                elif item =="E9":
+                                    if atk>=0:
+                                        textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(up))}"
+                                    elif atk<0:
+                                        textout+=f"靈獸複製了你的行動！{weaponoutmes.replace('你','靈獸').replace(str(atk),str(down))}"
+                                else:
+                                    while repeated>0:
+                                        eatk=random.randint(int(itemdatE[8]),int(itemdatE[9]))
+
+                                        #F區
+                                        for itemF in itemused:
+                                            if itemF.startswith("F"):
+                                                itemdatF=find_item_value(itemF)
+                                                changenum=float(itemdatF[7])
+                                                if itemdatF[6]=="a":
+                                                    if itemdatF[5]=="a" and eatk>0:
+                                                        eatk+=int(changenum)
+                                                    elif itemdatF[5]=="n":
+                                                        if eatk<0:
+                                                            eatk-=int(changenum)
+                                                        elif eatk>0:
+                                                            eatk+=int(changenum)
+
+                                        readyy=f"{itemdatE[6]}{do_positive(eatk)}{itemdatE[7]}\n"
+                                        if item=="E1":
+                                            if atk>0 and ("真實" not in weaponoutmes):
+                                                atk+=eatk
+                                                textout+=readyy
+                                        elif item=="E2":
+                                            if atk<0:
+                                                atk+=eatk
+                                                textout+=readyy
+                                        elif item=="E3":
+                                            if atk>0 and "真實" in weaponoutmes:
+                                                atk+=eatk
+                                                textout+=readyy
+                                        else:
+                                            atk+=eatk
+                                            textout+=readyy
+                                        repeated-=1
+
+                    #紀錄輸出
+                    damagelist=doread(damagerec)
+                    damagename=[]
+                    damagenumber=[]
+                    for a in damagelist:
+                        damagename.append(int(a[0]))
+                        damagenumber.append(int(a[1]))
+                    if ctx.author.id in damagename:
+                        v=damagename.index(ctx.author.id)
+                        damagenumber[v]+=atk
+                        doblank(damagerec)
+                        for b in range(1,len(damagename)):
+                            dorecord(damagerec,f"{damagename[b]},{damagenumber[b]}")
+                    else:
+                        dorecord(damagerec,f"{ctx.author.id},{atk}")
+
+                    #爆擊判定
+                    critical=random.randint(1,100)
+
+                    if not counted:
+                        for item in itemused:
+                            if item.startswith("D"):
+                                itemdat=find_item_value(item)
+                                lance+=int(itemdat[5])
+                                counted=True
+                            if item == "C19":
+                                lance+=random.randint(8,12)
+                                counted=True
+
+                    #連擊次數消耗
+                    if lance >0 :
+                        lance-=1
+                        critical=0
+                    #無限連擊類檢定
+                    if ifused("D3",itemused):
+                        if originatk >0:
+                            critical=0
+
+                    if bcombo=="Y":
+                        if bkind=="a":
+                            if totaldamage<blimit:
+                                critical=0
+                            else:
+                                bdone=True
+                        else:
+                            if -(totaldamage)<blimit:
+                                critical=0
+                            else:
+                                bdone=True
+
+                    if critical <= 5 :
+                        combo+=1
+                        if overkill:
+                            textout+="鞭屍！"
+                        else:
+                            if combo%3==1:
+                                textout+="緊接著"
+                            elif combo%3==2:
+                                textout+="然後"
+                            else:
+                                textout+="再來"
+                    
+
+                #剩餘血量&訊息印出===============================================================================
+                if boss_hp > 0:
+                    if heavenly:
+                        if hpwas >= 2500 and boss_hp < 2500:
+                            textout+=f'狛克略顯疲態！\n'
+                        if hpwas >= 1000 and boss_hp < 1000:
+                            textout+=f'狛克面色蒼白！\n'
+                        if hpwas >= 300 and boss_hp < 300:
+                            textout+=f'狛克跪倒在地！\n'
+                        if hpwas <= 300 and boss_hp > 300:
+                            textout+=f'狛克他重新站起來了！\n'
+                    else:
+                        if hpwas >= 500 and boss_hp < 500:
+                            textout+=f'狛克看起來有點虛弱！\n'
+                        if hpwas >= 300 and boss_hp < 300:
+                            textout+=f'狛克看起來非常的虛弱！\n'
+                        if hpwas >= 100 and boss_hp < 100:
+                            textout+=f'狛克看起來已經沒有力氣掙扎了！\n'
+                        if hpwas <= 100 and boss_hp > 100:
+                            textout+=f'狛克他重新站起來了！\n'
+                        if hpwas <= 1000 and boss_hp > 1000:
+                            textout+=f'狛克感到了前所未有的亢奮！\n'
+                    textout+=f'狛克還有{boss_hp}點血量！\n'
+                else:
+                    killed=True
+                    textout+=f'尾刀！狛克被變成了薩摩耶！\n'
+                    damagelist2=doread(damagerec)
+                    damagename2=[]
+                    damagenumber2=[]
+                    for a in damagelist2:
+                        damagename2.append(int(a[0]))
+                        damagenumber2.append(int(a[1]))
+                    mvp=damagename2[damagenumber2.index(max(damagenumber2))]
+                    tr=damagename2.index(mvp)
+                    fulldamage=0
+                    for b in range(1,len(damagename2)):
+                        fulldamage+=damagenumber2[b]
+                    partofhp=round(damagenumber2[tr]/fulldamage*100,1)
+                    textout+=f'本次BOSS輸出之MVP為<@{mvp}>，輸出率為{partofhp}%\n'
+
+                #改名
+                if ifused("A1",itemused):
+                    textout=textout.replace("狛克","哈庫瑪瑪塌塌").replace("你","狛克").replace("哈庫瑪瑪塌塌","你")
+                if namechanged:
+                    textout=textout.replace("狛克",f"{namechangeto}")
+                if len(intkiller)%1000 ==0:
+                    textout=textout.replace("狛克","千年狛克")
+                if len(intkiller)%1000 !=0 and len(intkiller)%100 ==0:
+                    textout=textout.replace("狛克","百年狛克")
                 if heavenly:
-                    for userys in damagename2:
-                        partofdam=round(damagenumber2[damagename2.index(userys)]/fulldamage*100/5)
-                        if partofdam!=0:
-                            secmes+=f'<@{userys}>\n'
-                        while partofdam != 0:
-                            partofdam-=1
-                            secmes+=f'{gat(userys)}\n'    #gat自帶給禮物功能
-                        mvp_get_it=True
+                    textout=textout.replace("狛克","天堂狛克")
+                    
+                #傳送訊息
+                if killed:
+                    if namechangeto =="威爾森":
+                        hahahalol=discord.File("bug.gif")
+                        textout=textout.replace("薩摩耶","竹節蟲")
+                    else:
+                        hahahalol=discord.File(random.choice(gifs["samoyed"]))
+                    if len(textout)<1900:
+                        await ctx.send(f'{ctx.author.mention}\n{textout}',file=hahahalol)
+                    else:
+                        outfile=discord.File(createtxt(textout))
+                        await ctx.send(f'{ctx.author.mention}\n',file=outfile)
                 else:
-                    if int(roll_dice/80)>0:
-                        they_get_it=True
-                        how_many=int(roll_dice/80)
-                        mvp_dice=random.randint(1,100)
-                        if mvp_dice>90:
-                            mvp_get_it=True
-            else:
-                if totaldamage >=0:
-                    if int(roll_dice/98)>0 :
-                        they_get_it=True
-                        how_many=int(roll_dice/97)
-                else:
-                    if int(roll_dice/97)>0 :
-                        they_get_fur=True
-                        how_many=int(roll_dice/97)
+                    if len(textout)<1900:
+                        await ctx.send(f'{ctx.author.mention}\n{textout}')
+                    else:
+                        outfile=discord.File(createtxt(textout))
+                        await ctx.send(f'{ctx.author.mention}\n',file=outfile)
 
-            if heavenly:
-                if they_get_it or they_get_fur:
-                    secmes+=f'{ctx.author.mention}\n'
-                    for a in range(0,how_many):
-                        secmes+=f'{gat(id,60)}\n'
-                if mvp_get_it:
-                    secmes+=f'<@{mvp}>\n{gat(mvp,70)}\n'
-            else:
-                if they_get_it:
-                    secmes+=f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！\n'
-                    givetooth(id,how_many)
-                if they_get_fur:
-                    secmes+=f'{ctx.author.mention}\n您獲得了{how_many}撮雪狼毛！\n'
-                    givefur(id,how_many)
-                if mvp_get_it:
-                    secmes+=f'<@{mvp}>\n您獲得了1顆雪狼牙！\n'
-                    givetooth(mvp,1)
-            if secmes !="":
-                if len(secmes)<1900:
-                    await ctx.send(f'{secmes}')
+                secmes=""
+                if killed:
+                    intkiller=[]
+                    dorecord("csvfile\\killed.csv",ctx.author.id)
+                    history=doread("csvfile\\killed.csv")
+                    for a in history:
+                        intkiller.append(int(a[0]))
+                    userkills=intkiller.count(ctx.author.id)
+                    if userkills %5 == 0 and userkills != 0:
+                        secmes+=f'{ctx.author.mention}\n恭喜！您已經把狛克變成薩摩耶{userkills}次！\n'
+                    if len(intkiller) %10 == 1:
+                        secmes+=f'{ctx.author.mention}\n恭喜！您是第{len(intkiller)-1}個把狛克變成薩摩耶的玩家！\n'
+                        if len(intkiller) %1000 == 1:
+                            giveitem(ctx.author.id,"銀令牌")
+                            secmes+=f'你獲得了**銀令牌**！\n'
+                            giveitem(mvp,"鐵令牌")
+                            secmes+=f'<@{mvp}>，你獲得了**鐵令牌**！\n'
+                        elif len(intkiller) %100 == 1:
+                            giveitem(ctx.author.id,"鐵令牌")
+                            secmes+=f'你獲得了**鐵令牌**！\n'
+                            giveitem(mvp,"木令牌")
+                            secmes+=f'<@{mvp}>，你獲得了**木令牌**！\n'
+                        elif len(intkiller) %10 == 1:
+                            giveitem(ctx.author.id,"木令牌")
+                            secmes+=f'你獲得了**木令牌**！\n'
+                    boss_hp=0
+
+                #掉落寶物
+                id=ctx.author.id
+                roll_dice+=random.randint(1,100)
+                while combo != 0:
+                    roll_dice+=random.randint(1,20)
+                    combo-=1
+                they_get_it=False
+                they_get_fur=False
+                how_many=0
+                mvp_get_it=False
+
+
+                if killed:
+                    if heavenly:
+                        for userys in damagename2:
+                            partofdam=round(damagenumber2[damagename2.index(userys)]/fulldamage*100/5)
+                            if partofdam!=0:
+                                secmes+=f'<@{userys}>\n'
+                            while partofdam != 0:
+                                partofdam-=1
+                                secmes+=f'{gat(userys)}\n'    #gat自帶給禮物功能
+                            mvp_get_it=True
+                    else:
+                        if int(roll_dice/80)>0:
+                            they_get_it=True
+                            how_many=int(roll_dice/80)
+                            mvp_dice=random.randint(1,100)
+                            if mvp_dice>90:
+                                mvp_get_it=True
                 else:
-                    outfileb=discord.File(createtxt(secmes))
-                    await ctx.send(file=outfileb)
+                    if totaldamage >=0:
+                        if int(roll_dice/98)>0 :
+                            they_get_it=True
+                            how_many=int(roll_dice/97)
+                    else:
+                        if int(roll_dice/97)>0 :
+                            they_get_fur=True
+                            how_many=int(roll_dice/97)
+
+                if heavenly:
+                    if they_get_it or they_get_fur:
+                        secmes+=f'{ctx.author.mention}\n'
+                        for a in range(0,how_many):
+                            secmes+=f'{gat(id,60)}\n'
+                    if mvp_get_it:
+                        secmes+=f'<@{mvp}>\n{gat(mvp,70)}\n'
+                else:
+                    if they_get_it:
+                        secmes+=f'{ctx.author.mention}\n您獲得了{how_many}顆雪狼牙！\n'
+                        givetooth(id,how_many)
+                    if they_get_fur:
+                        secmes+=f'{ctx.author.mention}\n您獲得了{how_many}撮雪狼毛！\n'
+                        givefur(id,how_many)
+                    if mvp_get_it:
+                        secmes+=f'<@{mvp}>\n您獲得了1顆雪狼牙！\n'
+                        givetooth(mvp,1)
+                if secmes !="":
+                    if len(secmes)<1900:
+                        await ctx.send(f'{secmes}')
+                    else:
+                        outfileb=discord.File(createtxt(secmes))
+                        await ctx.send(file=outfileb)
         else:
             await ctx.send(f'本頻道不可使用此指令，或者沒有登錄此頻道。')
 
@@ -1037,7 +1073,7 @@ class Rpg(Cog_Extension):
             await ctx.send(f'{ctx.author.mention}\n-w-...(完全不理你)')
 
     @commands.command() 
-    async def myitem(self,ctx):
+    async def myitem(self,ctx,*args):
         myitemuser=ctx.author
         users=[]
         furusers=[]
@@ -1074,13 +1110,20 @@ class Rpg(Cog_Extension):
                         availableitem+=1
             if availableitem ==0:
                 outmes+="您目前沒有任何道具...-w-"
-            await ctx.send(f'{ctx.author.mention}\n您的道具資訊已經傳送到私訊了！')
-
-            if len(outmes)<1900:
-                await myitemuser.send(f'{ctx.author.mention}\n{outmes}')
+            
+            if "show" in args:
+                if len(outmes)<1900:
+                    await ctx.send(f'{ctx.author.mention}\n{outmes}')
+                else:
+                    outfile=discord.File(createtxt(outmes))
+                    await ctx.send(f'{ctx.author.mention}\n',file=outfile)
             else:
-                outfile=discord.File(createtxt(outmes))
-                await myitemuser.send(f'{ctx.author.mention}\n',file=outfile)
+                await ctx.send(f'{ctx.author.mention}\n您的道具資訊已經傳送到私訊了！')
+                if len(outmes)<1900:
+                    await myitemuser.send(f'{ctx.author.mention}\n{outmes}')
+                else:
+                    outfile=discord.File(createtxt(outmes))
+                    await myitemuser.send(f'{ctx.author.mention}\n',file=outfile)
                     
         else:
             await ctx.send(f'{ctx.author.mention}\n您似乎什麼都沒有呢-w-...')
@@ -1163,6 +1206,25 @@ class Rpg(Cog_Extension):
         else:
             outmes+=f"無法辨識！請確定代碼正確！"
         await ctx.send(f'{ctx.author.mention}\n{outmes}')
+
+    @commands.command()
+    async def timelimit(self,ctx,arg):
+        if ctx.author.id == 429825029354553350:
+            global timelimited
+            if arg=="on":
+                timelimited=True
+                await ctx.send(f'開了啦-w-')
+            if arg=="off":
+                timelimited=False
+                await ctx.send(f'關了啦-w-')
+        else:
+            await ctx.send(f'{ctx.author.mention}\n-w-...(完全不理你)')
+
+    @commands.command()
+    async def announce(self,ctx,arg):
+        for channelcode in available_channel:
+            channel=self.bot.get_channel(channelcode)
+            await channel.send(f'{arg}')
                     
 def setup(bot):
     bot.add_cog(Rpg(bot))
