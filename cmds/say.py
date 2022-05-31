@@ -3,8 +3,7 @@ from discord.ext import commands
 from core.classes import Cog_Extension
 from datetime import datetime
 import json
-import random
-import csv
+import asyncio
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     jchannel=json.load(jfile)
