@@ -13,4 +13,4 @@
   + furryshop:雪狼毛商店
   + pss:三行剪刀石頭布的東西 不重要
 - 用bot.py啟動整隻bot
-  - 不過setting.json裡的token我就沒上傳了 你可以自己創一隻bot丟它的token
+  - 拜託不要拿我的token幹怪怪的事情求你們了qqqq
