@@ -9,6 +9,9 @@ import asyncio
 with open('setting.json','r',encoding='utf-8') as jfile:
     jdata=json.load(jfile)
 
+with open('C:\Users\user\Documents\GitHub\\basically_what\\token.json','r',encoding='utf-8') as jfile:
+    token_file=json.load(jfile)
+
 intents = discord.Intents.all() # enables all intents
 bot = commands.Bot(command_prefix='k!',intents=intents,case_insensitive=True)
 
@@ -149,4 +152,4 @@ for filename in os.listdir('./cmds'):
     if filename.endswith('.py'):
         bot.load_extension(f'cmds.{filename[:-3]}')
 if __name__ == "__main__":
-    bot.run(jdata['TOKEN'])
+    bot.run(token_file['TOKEN'])
