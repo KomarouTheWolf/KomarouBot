@@ -14,4 +14,4 @@
   + itemdata:物品的全資料
   + pss:三行剪刀石頭布的東西 不重要
 - 用bot.py啟動整隻bot
-  - 可以的話用別隻bot來開(換掉setting.json的token)
+  - 必須用別隻bot來開(換掉token)
