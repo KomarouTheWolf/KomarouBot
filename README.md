@@ -11,6 +11,7 @@
   - tips:小提示(別問為什麼是csv不是txt)
   + channel:裡面有薩摩耶:)
   + furryshop:雪狼毛商店
+  + itemdata:物品的全資料
   + pss:三行剪刀石頭布的東西 不重要
 - 用bot.py啟動整隻bot
   - 拜託不要拿我的token幹怪怪的事情求你們了qqqq
