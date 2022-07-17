@@ -408,6 +408,16 @@ class Rpg(Cog_Extension):
             error_outmes+=f"使用**{ch(c_args[0])}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與抽牌！(此卷軸為{typedic[c_type]}型卷軸)\n"
             error_outmes+=f"使用**{ch('D201')}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與抽牌！\n"
 
+        #道具數量字典
+        scrolls_dict={}
+        for scrolls in set(mult_args):
+            scrolls_dict[itemdict[scrolls]]=mult_args.count(scrolls)
+
+        if b_args and scrolls_dict[b_args[0]]>1:
+            error_outmes+=f"使用**{ch(b_args[0])}**時發生錯誤！\n傷害保障型卷軸一次只能使用一個！\n"
+        if c_args and scrolls_dict[c_args[0]]>1:
+            error_outmes+=f"使用**{ch(c_args[0])}**時發生錯誤！\n武器變化型卷軸一次只能使用一個！\n"
+
         #錯誤訊息印出
         if error_outmes:
             error_mes=discord.Embed(title="❌行動失敗",description=error_outmes)
@@ -433,11 +443,6 @@ class Rpg(Cog_Extension):
             return
 
         ######此行以下沒有除了變形術以外的return######
-
-        #道具數量字典
-        scrolls_dict={}
-        for scrolls in set(mult_args):
-            scrolls_dict[itemdict[scrolls]]=mult_args.count(scrolls)
         
         #血量重置
         if boss.killed():

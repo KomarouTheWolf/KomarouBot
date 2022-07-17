@@ -9,7 +9,7 @@ import asyncio
 with open('setting.json','r',encoding='utf-8') as jfile:
     jdata=json.load(jfile)
 
-with open('C:\Users\user\Documents\GitHub\\basically_what\\token.json','r',encoding='utf-8') as jfile:
+with open('C:\\Users\\user\\Documents\\GitHub\\basically_what\\token.json','r',encoding='utf-8') as jfile:
     token_file=json.load(jfile)
 
 intents = discord.Intents.all() # enables all intents
