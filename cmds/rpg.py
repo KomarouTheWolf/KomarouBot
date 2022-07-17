@@ -17,7 +17,8 @@ damagerec="csvfile\\damagerec.csv"
 timenote="csvfile\\timelimit.csv"
 boss_killer="csvfile\\killed.csv"
 rpgweapon="csvfile\\rpgweapon.csv"
-available_channel=(935768359931371540,935471683911954512,641131990959259667,938827700968231022,990563126397247548)
+available_channel=(935768359931371540,935471683911954512,641131990959259667,938827700968231022,990563126397247548,
+                    990560339286450176,990560878392913971)
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     gifs=json.load(jfile)
@@ -33,9 +34,9 @@ itemdict={}
 for items in item_fulldata:
     itemdict[item_fulldata[items]["name"]]=items
 
-find_id = lambda items : itemdict[items] #str
-inf = lambda item_id : item_fulldata[item_id] #dict
-ch = lambda item_id : item_fulldata[item_id]['name'] #str
+find_id = lambda items : itemdict[items] #中文名字轉ID
+inf = lambda item_id : item_fulldata[item_id] #ID轉完整資訊(dict)
+ch = lambda item_id : item_fulldata[item_id]['name'] #ID轉中文名字
 
 #把csv讀成df
 def doread(csv_file,col_names=None):
@@ -51,6 +52,7 @@ def doblank(file):
     blanky=pd.DataFrame([[0,0]])
     csv_write(blanky,file,"w")
 
+#傷害紀錄表專屬的全清空
 def doblank_dmgrec(file):
     blanky=pd.DataFrame([[]])
     csv_write(blanky,file,"w")
@@ -69,6 +71,7 @@ def read_time():
     df.loc[:,"time"]=df["time"].astype("float64")
     return df
 
+#讀取BOSS擊殺者列表
 def read_bosskiller():
     df=doread(boss_killer,["playerID"])
     df.loc[:,"playerID"]=df["playerID"].astype("int64")
@@ -90,6 +93,7 @@ def read_weapons():
             alllines.append(lines.strip('\n').strip(' ').split(','))
     return alllines
 
+#讀取傷害紀錄表
 def read_damagerec():
     df=doread(damagerec,["playerID","dmg"])
     df.loc[:,"playerID"]=df["playerID"].astype("int64")
@@ -131,7 +135,7 @@ def givetooth(id,how_many):
         blanky=pd.DataFrame([[id,how_many,'0%0']])
         csv_write(blanky,item,"a")
 
-#消耗牙齒
+#消耗牙齒       #不夠時回報現有數量 #夠時回報True
 def removetooth(id,how_many):
     itemrawdata=read_item()
     if id in itemrawdata["playerID"].values:
@@ -145,6 +149,7 @@ def removetooth(id,how_many):
     else:
         return 0
 
+#給毛
 def givefur(id,how_many):
     itemrawdata=read_fur()
     if id in itemrawdata["playerID"].values:
@@ -154,6 +159,7 @@ def givefur(id,how_many):
         blanky=pd.DataFrame([[id,how_many]])
         csv_write(blanky,furfile,"a")
 
+#消耗毛     #不夠時回報現有數量 #夠時回報True
 def removefur(id,how_many):
     itemrawdata=read_fur()
     if id in itemrawdata["playerID"].values:
@@ -167,6 +173,7 @@ def removefur(id,how_many):
     else:
         return 0
 
+#給道具
 def giveitem(reciever,arg1,arg2=1):       #receiver是int,arg1是物品名稱 #沒有辨識arg2是否為int的功能
     if arg1 == "":
         return '您似乎沒有說明要使用什麼呢-w-...'
@@ -181,6 +188,7 @@ def giveitem(reciever,arg1,arg2=1):       #receiver是int,arg1是物品名稱 #�
     save_scrolls(reciever,df)
     return True
 
+#檢查是否持有足夠道具
 def checkitem(reciever,arg1,arg2=1): #回覆持有數
     df=read_scrolls(reciever)
     if type(df)==str:
@@ -191,11 +199,13 @@ def checkitem(reciever,arg1,arg2=1): #回覆持有數
         return df.loc[arg1,:].values[0]
     return "OK"
 
+#消耗道具
 def removeitem(reciever,arg1,arg2=1):
     df=read_scrolls(reciever)
     df.loc[arg1,:]-=arg2
     save_scrolls(reciever,df)
 
+#令牌的抽獎
 def token_redeem(redeem_ID):
     if redeem_ID == "O101":
         a=random.randint(1,100)
@@ -211,12 +221,14 @@ def token_redeem(redeem_ID):
         b="D301"
     return ch(b)
 
+#字數爆掉時創造txt用的臨時檔案
 def createtxt(mes):
     k=round(time.time()*100)
     with open(f'temporary\{k}.txt','a',encoding='utf-8') as txtfile:
         txtfile.writelines(mes)
     return f'temporary\{k}.txt'
     
+#抽卷軸
 def gatcha(user_id,adjust_luck=0):    #結果是名字,數字
     onestar = [ele for ele in item_fulldata if item_fulldata[ele]["rarity"]==1 and not ele.startswith("D")]
     twostar = [ele for ele in item_fulldata if item_fulldata[ele]["rarity"]==2 and not ele.startswith("D")]
@@ -237,6 +249,7 @@ def gatcha(user_id,adjust_luck=0):    #結果是名字,數字
     giveitem(user_id,ch(gatcharesult),num)
     return ch(gatcharesult),num
 
+#回報玩家的冷卻秒數
 def in_colddown(id):
     time_df=read_time()
     if id not in time_df["playerID"].values:
@@ -252,16 +265,19 @@ def in_colddown(id):
         csv_write(time_df,timenote,"w")
         return 0
 
+#embed設定author
 embname = lambda embed_message, ctx : embed_message.set_author(name=ctx.author.nick or ctx.author.name, icon_url=ctx.author.avatar_url)
+#爆字數檢定
 toolong = lambda x: len(x)>1600
 
+#這是一隻BOSS!
 class Boss:
     def __init__(self,minhp,maxhp,defaultname):
         self.hp=random.randint(minhp,maxhp)
         self.maxhp=maxhp
         self.minhp=minhp
-        self.bosstype=defaultname
-        self.name=defaultname
+        self.bosstype=defaultname   #這個不動
+        self.name=defaultname       #這個拿來改
         self.overkilling=False
     def hp_reset(self):
         self.hp=random.randint(self.minhp,self.maxhp)
@@ -475,10 +491,12 @@ class Rpg(Cog_Extension):
                 embname(transform_mes,ctx)
                 await ctx.send(embed=transform_mes)
 
+        #重生
         if "J101" in scrolls_dict:
             boss.hp_reset()
             revived=True
-            
+
+        #分離
         if "J201" in scrolls_dict:
             for _ in range(scrolls_dict["J201"]):
                 boss.hp=round(boss.hp/2)
@@ -486,14 +504,14 @@ class Rpg(Cog_Extension):
 
         #事先設定保底combo數(D區讀取)
         can_use_combo,critical,lockcount,verticount=0,0,0,0
-        while critical<=5:
+        while critical<=5:  #5%再行動
             critical=random.randint(1,100)
             can_use_combo+=1
         for Ds in [ele for ele in scrolls_dict if ele.startswith("D")]:
             can_use_combo+=inf(Ds)["combos"]*scrolls_dict[Ds]
             lockcount+=1+scrolls_dict[Ds] if Ds=="D101" else 0
             verticount+=1+3*scrolls_dict[Ds] if Ds=="D202" else 0
-        if "C303" in scrolls_dict:
+        if "C303" in scrolls_dict:      #貓之海
             can_use_combo+=random.randint(8,12)
 
         allcombos=can_use_combo
@@ -513,6 +531,8 @@ class Rpg(Cog_Extension):
             uncomboed=0
         while can_use_combo>0 and "J301" not in scrolls_dict:
             textout=""
+
+            #隨機行動
             WeaponResult=random.choice(c_moves) if c_args else random.choice(read_weapons())
             mvmain1,mvmain2,mvdown,mvup=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
             atk = 0 if mvup==0 else random.randint(mvdown,mvup)
@@ -586,7 +606,7 @@ class Rpg(Cog_Extension):
                         E_atk=random.randint(int(inf(Es)["move"][2]),int(inf(Es)["move"][3]))
                         E_atk = round(F_calc(E_atk,scrolls_dict,False))
                         textout+=f'{inf(Es)["move"][0]}{abs(E_atk)}{inf(Es)["move"][1]}\n'
-                    else:
+                    else:   #未滿足再動條件
                         E_atk=0
                     E_allatk+=E_atk
 
@@ -598,6 +618,7 @@ class Rpg(Cog_Extension):
             boss.hp-=(atk+E_allatk)
             totaldmg+=(atk+E_allatk)
                 
+            #詞綴
             if boss.overkilling:
                 alloutmes+="**鞭屍！**"
             elif boss.killed():
@@ -616,12 +637,12 @@ class Rpg(Cog_Extension):
                 uncomboed+=1
                 continue
             
-            #B卷軸效果銷毀
+            #B卷軸效果結束時銷毀
             if b_args:
                 if inf(b_args[0])["can_combo"]== "N" or (inf(b_args[0])["can_combo"]== "Y" and abs(totaldmg)>inf(b_args[0])["limit"]):
                     b_args,b_type=[],""
 
-            #行動結束
+            #單次行動結束
             can_use_combo-=1
 
         #寫入傷害表============================================================================
@@ -886,6 +907,7 @@ class Rpg(Cog_Extension):
 
         embedmes2=discord.Embed(title="🍀召喚！", description=f'消耗{int(arg)}個雪狼牙佈陣！\n進行{int(arg)}次召喚！\n你獲得了：')
         embname(embedmes2,ctx)
+        #開抽
         for i in range(int(arg)):
             itemname,itemcount=gatcha(ctx.author.id,50) if i==9 else gatcha(ctx.author.id,0)
             embedmes2.add_field(name=f"{itemcount}個[{inf(itemdict[itemname])['rarity']*'☆'}]**{itemname}**",
@@ -924,6 +946,7 @@ class Rpg(Cog_Extension):
 
         embedmes2=discord.Embed(title="⌛兌換！", description=f'支付{int(arg2)}個{arg1}！\n回來啦回來啦-w-...\n你獲得了：')
         embname(embedmes2,ctx)
+        #開抽
         for _ in range(int(arg2)):
             tokenget=token_redeem(itemdict[arg1])
             giveitem(ctx.author.id,tokenget)
@@ -946,12 +969,13 @@ class Rpg(Cog_Extension):
         outmes+=f"雪狼毛：{furcount}顆\n"
         outmes+=f"持有道具：\n"
         itemmes=""
+        #開始讀取道具
         scroll_df=read_scrolls(id)
         if type(scroll_df)==str:
             itemmes="無。"
         else:
             scroll_dict=scroll_df.to_dict("index")
-            del scroll_dict["0"]
+            del scroll_dict["0"]    #第一項必為0
             for scrolls in item_fulldata:
                 if ch(scrolls) in scroll_dict and scroll_dict[ch(scrolls)]["counts"]>0:
                     itemmes+=f'[{item_fulldata[scrolls]["rarity"]*"☆"}]**{ch(scrolls)}**：{scroll_dict[ch(scrolls)]["counts"]}個\n'
@@ -999,11 +1023,14 @@ class Rpg(Cog_Extension):
             if not arg2.isdecimal():
                 await ctx.send(f"{ctx.author.mention}\n商品數量請輸入整數汪！")
                 return
+
             costfur=int(arg2)*furryshop[arg1]
             enough_fur=removefur(ctx.author.id,costfur)
             if type(enough_fur)!=bool:
                 await ctx.send(f"{ctx.author.mention}\n你的雪狼毛不夠汪...\n總共需要{costfur}個，你只有{enough_fur}個汪！")
                 return
+            
+            #購買成功
             giveitem(ctx.author.id,arg1,int(arg2))
             embedmes=discord.Embed(title="🪶成交！",description=f"以{costfur}撮雪狼毛獲得了{arg2}個{arg1}！")
             embedmes.set_thumbnail(url="https://images.plurk.com/zhIdDrzyyu8IwQCJXUAkR.png")
