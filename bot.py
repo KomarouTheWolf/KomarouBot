@@ -99,7 +99,7 @@ async def on_message(msg):
                         pss_file=json.load(jfile)
                     pss_file.setdefault(they_do,random.choice([1,2,3]))
                     with open('csvfile\\pss.json','w',encoding='utf-8') as jfile:
-                        json.dump(pss_file,jfile)
+                        json.dump(pss_file,jfile,ensure_ascii=False,indent=4)
                     cpu_do=random.choice(("剪刀","石頭","布"))
                     resultin=do_pss(pss_file[they_do],pss_file[cpu_do])
                     if resultin=="0":
@@ -145,7 +145,7 @@ async def reload(ctx,extension):
 async def on_ready():
     print('>>Bot Online.<<')
     status_w = discord.Status.online
-    activity_w = discord.Activity(type=discord.ActivityType.playing, name="弄狛克的咖啡廳")
+    activity_w = discord.Activity(type=discord.ActivityType.watching, name="狛克被人狂揍猛揍")
     await bot.change_presence(status= status_w, activity=activity_w)
 
 for filename in os.listdir('./cmds'):

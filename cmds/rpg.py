@@ -11,14 +11,11 @@ import asyncio
 import pandas as pd
 import math
 
-item="csvfile\\item.csv"
 furfile="csvfile\\furcount.csv"
 damagerec="csvfile\\damagerec.csv"
 timenote="csvfile\\timelimit.csv"
 boss_killer="csvfile\\killed.csv"
 rpgweapon="csvfile\\rpgweapon.csv"
-available_channel=(935768359931371540,935471683911954512,641131990959259667,938827700968231022,990563126397247548,
-                    990560339286450176,990560878392913971)
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     gifs=json.load(jfile)
@@ -57,31 +54,30 @@ def doblank_dmgrec(file):
     blanky=pd.DataFrame([[]])
     csv_write(blanky,file,"w")
 
-#讀取道具與牙齒表
+#讀取道具表
 def read_item():
-    df=doread(item,["playerID","tooths","items"])
-    df.loc[:,"playerID"]=df["playerID"].astype("int64")
-    df.loc[:,"tooths"]=df["tooths"].astype("int64")
-    return df
+    with open('csvfile\\item.json','r',encoding='utf-8') as jfile:
+        it_dict=json.load(jfile)
+    return it_dict
+
+#儲存修改完的道具表
+def save_item(dct):
+    with open('csvfile\\item.json','w',encoding='utf-8') as it:
+        json.dump(dct,it,ensure_ascii=False,indent=4)
+    return 'okay'
 
 #讀取時間限制列表
 def read_time():
-    df=doread(timenote,["playerID","time"])
+    df=doread(timenote,["playerID","time","uncolddown"])
     df.loc[:,"playerID"]=df["playerID"].astype("int64")
     df.loc[:,"time"]=df["time"].astype("float64")
+    df.loc[:,"uncolddown"]=df["uncolddown"].astype("int64")
     return df
 
 #讀取BOSS擊殺者列表
 def read_bosskiller():
     df=doread(boss_killer,["playerID"])
     df.loc[:,"playerID"]=df["playerID"].astype("int64")
-    return df
-
-#讀取狼毛表
-def read_fur():
-    df=doread(furfile,["playerID","furs"])
-    df.loc[:,"playerID"]=df["playerID"].astype("int64")
-    df.loc[:,"furs"]=df["furs"].astype("int64")
     return df
 
 #讀取武器表 #串列注意
@@ -100,75 +96,64 @@ def read_damagerec():
     df.loc[:,"dmg"]=df["dmg"].astype("int64")
     return df
 
-#把玩家的道具轉換成df
+#讀取玩家道具
 def read_scrolls(id):
-    raw_df=read_item()
-    if id not in raw_df["playerID"].values:
+    it_dict=read_item()
+    if str(id) not in it_dict:
         return "Not found"
-    raw_item = raw_df.loc[raw_df["playerID"]==id,"items"].copy().values[0].split(';')
-    for everyitem in range(len(raw_item)):
-        raw_item[everyitem]=raw_item[everyitem].split('%')
-    df=pd.DataFrame(raw_item,columns=["name","counts"])
-    df.loc[:,"counts"]=df["counts"].astype("int64")
-    df.set_index("name",inplace=True)
-    return df
+    return it_dict[str(id)]["items"]
 
 #把改完的道具df寫回道具表
-def save_scrolls(id,df):
-    df=df.to_dict()
-    result=""
-    for item_name in df["counts"]:
-        result+=f'{item_name}%{int(df["counts"][item_name])};'
-    result=result[:-1]
-    item_df=read_item()
-    item_df.loc[item_df["playerID"]==id,"items"]=result
-    csv_write(item_df,item,"w")
+def save_scrolls(id,it_dict):
+    dct=read_item()
+    dct[str(id)]["items"]=it_dict
+    save_item(dct)
     return "okay"
 
 #給牙齒
 def givetooth(id,how_many):
-    itemrawdata=read_item()
-    if id in itemrawdata["playerID"].values:
-        itemrawdata.loc[itemrawdata["playerID"]==id,"tooths"]=int(itemrawdata.loc[itemrawdata["playerID"]==id,"tooths"]+how_many)
-        csv_write(itemrawdata,item,"w")
+    dct=read_item()
+    if str(id) in dct:
+        dct[str(id)]["tooths"]+=how_many
+        save_item(dct)
     else:
-        blanky=pd.DataFrame([[id,how_many,'0%0']])
-        csv_write(blanky,item,"a")
+        dct[str(id)]={"tooths": how_many,"furs": 0,"items": {}}
+        save_item(dct)
 
 #消耗牙齒       #不夠時回報現有數量 #夠時回報True
 def removetooth(id,how_many):
-    itemrawdata=read_item()
-    if id in itemrawdata["playerID"].values:
-        available_tooth=int(itemrawdata.loc[itemrawdata["playerID"]==id,"tooths"])
+    dct=read_item()
+    if str(id) in dct:
+        available_tooth=dct[str(id)]["tooths"]
         if available_tooth < how_many:
             return available_tooth
         else:
-            itemrawdata.loc[itemrawdata["playerID"]==id,"tooths"]=int(itemrawdata.loc[itemrawdata["playerID"]==id,"tooths"]-how_many)
-            csv_write(itemrawdata,item,"w")
+            dct[str(id)]["tooths"]-=how_many
+            save_item(dct)
             return True
     else:
         return 0
 
 #給毛
 def givefur(id,how_many):
-    itemrawdata=read_fur()
-    if id in itemrawdata["playerID"].values:
-        itemrawdata.loc[itemrawdata["playerID"]==id,"furs"]=int(itemrawdata.loc[itemrawdata["playerID"]==id,"furs"]+how_many)
-        csv_write(itemrawdata,furfile,"w")
+    dct=read_item()
+    if str(id) in dct:
+        dct[str(id)]["furs"]+=how_many
+        save_item(dct)
     else:
-        blanky=pd.DataFrame([[id,how_many]])
-        csv_write(blanky,furfile,"a")
+        dct[str(id)]={"tooths": 0,"furs": how_many,"items": {}}
+        save_item(dct)
 
 #消耗毛     #不夠時回報現有數量 #夠時回報True
 def removefur(id,how_many):
-    itemrawdata=read_fur()
-    if id in itemrawdata["playerID"].values:
-        available_fur=int(itemrawdata.loc[itemrawdata["playerID"]==id,"furs"])
-        if available_fur < how_many:
-            return available_fur
+    dct=read_item()
+    if str(id) in dct:
+        available_furs=dct[str(id)]["furs"]
+        if available_furs < how_many:
+            return available_furs
         else:
-            itemrawdata.loc[itemrawdata["playerID"]==id,"furs"]=int(itemrawdata.loc[itemrawdata["playerID"]==id,"furs"]-how_many)
-            csv_write(itemrawdata,furfile,"w")
+            dct[str(id)]["furs"]-=how_many
+            save_item(dct)
             return True
     else:
         return 0
@@ -179,31 +164,31 @@ def giveitem(reciever,arg1,arg2=1):       #receiver是int,arg1是物品名稱 #�
         return '您似乎沒有說明要使用什麼呢-w-...'
     if arg1 not in itemdict:
         return '這個東西似乎名稱不對呢-w-...\n請確定您輸入的是不含稀有度的道具全名-w-...'
-    df=read_scrolls(reciever)
-    if type(df)==str:
-        blanky=pd.DataFrame([[reciever,0,f"0%0;{arg1}%{arg2}"]])
-        csv_write(blanky,item,"a")
+    scr_dct=read_scrolls(reciever)
+    if type(scr_dct)==str:
+        scr_dct[str(id)]={"tooths": 0,"furs": 0,"items": {arg1:arg2}}
+        save_scrolls(reciever,scr_dct)
         return True
-    df.loc[arg1,["counts"]]= arg2 if arg1 not in df.index else int(df.loc[arg1,["counts"]]+arg2)
-    save_scrolls(reciever,df)
+    scr_dct[arg1]= arg2 if arg1 not in scr_dct else scr_dct[arg1]+arg2
+    save_scrolls(reciever,scr_dct)
     return True
 
 #檢查是否持有足夠道具
 def checkitem(reciever,arg1,arg2=1): #回覆持有數
-    df=read_scrolls(reciever)
-    if type(df)==str:
+    scr_dct=read_scrolls(reciever)
+    if type(scr_dct)==str:
         return 0
-    if arg1 not in df.index:
+    if arg1 not in scr_dct:
         return 0
-    if df.loc[arg1,:].values<arg2:
-        return df.loc[arg1,:].values[0]
+    if scr_dct[arg1]<arg2:
+        return scr_dct[arg1]
     return "OK"
 
 #消耗道具
 def removeitem(reciever,arg1,arg2=1):
-    df=read_scrolls(reciever)
-    df.loc[arg1,:]-=arg2
-    save_scrolls(reciever,df)
+    scr_dct=read_scrolls(reciever)
+    scr_dct[arg1]-=arg2
+    save_scrolls(reciever,scr_dct)
 
 #令牌的抽獎
 def token_redeem(redeem_ID):
@@ -253,17 +238,21 @@ def gatcha(user_id,adjust_luck=0):    #結果是名字,數字
 def in_colddown(id):
     time_df=read_time()
     if id not in time_df["playerID"].values:
-        blanky=pd.DataFrame([[id,time.time()]])
+        blanky=pd.DataFrame([[id,time.time(),0]])
         csv_write(blanky,timenote,"a")
         return 0
     awaittime = time_df.loc[time_df["playerID"]==id,"time"].values[0]
-    if time.time()-awaittime<10:
-        a=10-round(time.time()-awaittime)
+    if time.time()-awaittime<5:
+        a=5-round(time.time()-awaittime)
+        time_df.loc[time_df["playerID"]==id,"uncolddown"]+=1
+        csv_write(time_df,timenote,"w")
         return 1 if a==0 else a
     else:
         time_df.loc[time_df["playerID"]==id,"time"]=time.time()
+        time_df.loc[time_df["playerID"]==id,"uncolddown"]=0
         csv_write(time_df,timenote,"w")
         return 0
+
 
 #embed設定author
 embname = lambda embed_message, ctx : embed_message.set_author(name=ctx.author.nick or ctx.author.name, icon_url=ctx.author.avatar_url)
@@ -304,6 +293,9 @@ class Rpg(Cog_Extension):
         alloutmes=""
 
         #非登錄頻道不可使用
+        with open('csvfile\\allowchannel.json','r',encoding='utf-8') as jfile:
+            allowchannel=json.load(jfile)
+        available_channel=allowchannel["allowedchannel"]
         if ctx.channel.id  not in available_channel:
             await ctx.send(f'本頻道不可使用此指令，或者沒有登錄此頻道。')
             return
@@ -437,7 +429,12 @@ class Rpg(Cog_Extension):
 
         #未冷卻完畢之訊息
         if timelimited and in_colddown(id):
-            notcoldmes = await ctx.send(f'{ctx.author.mention}\n本指令有10秒冷卻！您還有{in_colddown(id)}秒！')
+            time_df=read_time()
+            if time_df.loc[time_df["playerID"]==id,"uncolddown"].values[0]<3:
+                unc_mes=f"本指令有5秒冷卻！您還有{in_colddown(id)}秒！"
+            else:
+                unc_mes=f"本指令有5秒冷卻！您還有{in_colddown(id)}...欸不是你到底有完沒完！"
+            notcoldmes = await ctx.send(f'{ctx.author.mention}\n{unc_mes}')
             await asyncio.sleep(3)
             await notcoldmes.delete()
             return
@@ -744,9 +741,9 @@ class Rpg(Cog_Extension):
         for _ in range(additional_percentage):
             tooth_dice+=random.randint(1,10)
         if totaldmg>0:
-            tooth_get=int(tooth_dice/105)
-        else:
             tooth_get=int(tooth_dice/100)
+        else:
+            tooth_get=int(tooth_dice/95)
         if boss.killed():
             tooth_get+=int(random.randint(1,100)/80)
 
@@ -790,7 +787,7 @@ class Rpg(Cog_Extension):
             else:
                 if tooth_get:
                     givefur(id,tooth_get)
-                    fiel1+=f"{tooth_get}根雪狼毛\n"
+                    fiel1+=f"{tooth_get}撮雪狼毛\n"
 
             #mvp計算
             if boss.killed():
@@ -805,6 +802,9 @@ class Rpg(Cog_Extension):
         if "A101" in scrolls_dict:
             alloutmes=alloutmes.replace("狛克","哈庫瑪瑪塌塌").replace("你","狛克").replace("哈庫瑪瑪塌塌","你")
         alloutmes=alloutmes.replace("狛克",boss.name)
+
+        #反打的行動
+        alloutmes=alloutmes.replace("owowowo",str(random.randint(1,100)))
         
         #決定標題
         if revived and boss.killed():
@@ -841,6 +841,9 @@ class Rpg(Cog_Extension):
                 hitembedmes.add_field(name=f"{str(haver_name)}得到了：",value=hv_resultdict[haver], inline=True)
         hitembedmes.set_footer(text=f"Tips:{random.choice(tips)}")
 
+        if allcombos==1 and ("那個很會魔法的阿嬤" in alloutmes) and ("那個很會魔法的阿嬤" not in boss.name):
+            hitembedmes.set_thumbnail(url="https://images.plurk.com/24XoKNaUPcSRz4zIZgkCgL.png")
+
         #訊息發送
         if "威爾森" in boss.name:
             hahahalol=discord.File("bug.gif")
@@ -864,9 +867,9 @@ class Rpg(Cog_Extension):
             if read_bosskiller()["playerID"].value_counts()[id]%5 == 0:
                 secmes+=f"你目前已經把狛克變成薩摩耶{read_bosskiller()['playerID'].value_counts()[id]}次了！"
         if secmes:
-            secmes+=discord.Embed(title="🎉恭喜",description=f"你是第{len(read_bosskiller().index)-1}個把狛克變成薩摩耶的玩家！")
-            embname(secmes,ctx)
-            await ctx.send(embed=secmes)
+            secembmes=discord.Embed(title="🎉恭喜",description=secmes)
+            embname(secembmes,ctx)
+            await ctx.send(embed=secembmes)
 
 ####################################################################################################################################
     @commands.command()
@@ -964,27 +967,22 @@ class Rpg(Cog_Extension):
     async def myitem(self,ctx):
         myitemuser=ctx.author
         id=myitemuser.id
-        item_df=read_item()
-        fur_df=read_fur()
-        toothcount = int(item_df.loc[item_df["playerID"]==id,"tooths"]) if id in item_df["playerID"].values else 0
-        furcount = int(fur_df.loc[fur_df["playerID"]==id,"furs"]) if id in fur_df["playerID"].values else 0
+        item_dct=read_item()
 
         outmes="您的持有道具如下：\n"
-        outmes+=f"雪狼牙：{toothcount}顆\n"
-        outmes+=f"雪狼毛：{furcount}顆\n"
+        outmes+=f"雪狼牙：{item_dct[str(id)]['tooths']}顆\n"
+        outmes+=f"雪狼毛：{item_dct[str(id)]['furs']}撮\n"
         outmes+=f"持有道具：\n"
         itemmes=""
         #開始讀取道具
-        scroll_df=read_scrolls(id)
-        if type(scroll_df)==str:
+        scroll_dct=read_scrolls(id)
+        if type(scroll_dct)==str:
             itemmes="無。"
         else:
-            scroll_dict=scroll_df.to_dict("index")
-            del scroll_dict["0"]    #第一項必為0
-            for scrolls in item_fulldata:
-                if ch(scrolls) in scroll_dict and scroll_dict[ch(scrolls)]["counts"]>0:
-                    itemmes+=f'[{item_fulldata[scrolls]["rarity"]*"☆"}]**{ch(scrolls)}**：{scroll_dict[ch(scrolls)]["counts"]}個\n'
-                    itemmes+=f'[{item_fulldata[scrolls]["description"]}]\n\n'
+            for scrolls in scroll_dct:
+                if scroll_dct[scrolls]>0:
+                    itemmes+=f'[{inf(find_id(scrolls))["rarity"]*"☆"}]**{scrolls}**：{scroll_dct[scrolls]}個\n'
+                    itemmes+=f'[{inf(find_id(scrolls))["description"]}]\n\n'
         
         if itemmes=="":
             itemmes="無。"
@@ -1092,6 +1090,63 @@ class Rpg(Cog_Extension):
             await ctx.send(f'{ctx.author.mention}\n文字過多，請見附檔。',file=outfile)
         else:
             await ctx.send(f'{ctx.author.mention}\n{outmes}')
-        
+
+    @commands.command()
+    @commands.has_permissions(administrator=True)
+    async def setchannel(self,ctx,arg=""):
+        if arg == "":
+            await ctx.send(f'{ctx.author.mention}\n此指令為指定k!hit可使用頻道。請輸入k!setchannel (頻道全名)')
+            return
+        if arg not in [channel.name for channel in ctx.guild.channels]:
+            await ctx.send(f'{ctx.author.mention}\n在當前伺服器中找不到{arg}這個頻道。')
+            return
+        try:
+            for channel in ctx.guild.channels:
+                if channel.name == arg:
+                    break
+            await ctx.send(f'{ctx.author.mention}\n請到{arg}頻道確認。')
+            with open('csvfile\\allowchannel.json','r',encoding='utf-8') as jfile:
+                available_channel=json.load(jfile)
+            if channel.id in available_channel["allowedchannel"]:
+                org_message = await channel.send(f'{ctx.author.mention}\n是否取消本頻道為k!hit可使用頻道？')
+            else:
+                org_message = await channel.send(f'{ctx.author.mention}\n是否使用本頻道為k!hit可使用頻道？')
+            emoji_y="⭕"
+            emoji_n="❌"
+            await org_message.add_reaction(emoji_y)
+            await org_message.add_reaction(emoji_n)
+            try:
+                def checkv(reaction,user):
+                    return user == ctx.author and str(reaction.emoji) in (emoji_y,emoji_n)
+                reaction,user=await self.bot.wait_for("reaction_add", timeout=20, check=checkv)
+                if str(reaction.emoji) ==emoji_n:
+                    await org_message.delete()
+                if str(reaction.emoji) ==emoji_y:
+                    await org_message.delete()
+
+                    if channel.id not in available_channel["allowedchannel"]:
+                        available_channel["allowedchannel"].append(channel.id)
+                        await channel.send(f'{ctx.author.mention}\n本頻道已設定為k!hit可使用頻道。')
+                    else:
+                        available_channel["allowedchannel"].remove(channel.id)
+                        await channel.send(f'{ctx.author.mention}\n本頻道已設定為k!hit不可使用頻道。')
+                    
+                    with open('csvfile\\allowchannel.json','w',encoding='utf-8') as jfile:
+                        json.dump(available_channel,jfile,ensure_ascii=False,indent=4)
+            except asyncio.TimeoutError:
+                await org_message.delete()
+        except BaseException as err:
+            print(f"Unexpected {err=}, {type(err)=}")
+            await ctx.send(f'{ctx.author.mention}\n向{arg}頻道發送訊息時發生錯誤。')
+            pass
+
+    @setchannel.error
+    async def setchannel_error(self,error,ctx):
+        if isinstance(error, commands.MissingPermissions):
+            await ctx.send("此指令為指定k!hit可使用頻道。只有擁有管理員權限的成員才能使用。")
+
+#之後做個可以設定可用頻道的?
+#新增一部分道具
+
 def setup(bot):
     bot.add_cog(Rpg(bot))

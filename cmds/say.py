@@ -11,6 +11,7 @@ with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
 class Say(Cog_Extension):
     @commands.command()
     async def say(self,ctx):
+        await ctx.message.delete()
         arg=ctx.message.clean_content[5:]
         await ctx.send(f'{arg}')
 

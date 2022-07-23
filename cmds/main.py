@@ -19,11 +19,11 @@ class Main(Cog_Extension):
         bsd=jdata["DES"]
         await ctx.message.channel.send(f'```{bsd}```')
 
-    @commands.command()
+    '''@commands.command()
     async def agyou(self,ctx):
         pic=random.choice(jdata['PIC'])
         ag=discord.File(pic)
-        await ctx.send(file=ag)
+        await ctx.send(file=ag)'''
 
 #Bot設定區
 
