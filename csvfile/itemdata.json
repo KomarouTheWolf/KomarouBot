@@ -353,7 +353,7 @@
     },
     "D201":{
         "item_type":"D",
-        "name":"抽牌",
+        "name":"無盡",
         "rarity":2,
         "description":"連擊型卷軸，使用時，此次行動無限連擊至沒有造成傷害為止。",
         "availnum":"1",
@@ -363,7 +363,7 @@
     },
     "D202":{
         "item_type":"D",
-        "name":"水平四方斬",
+        "name":"四象",
         "rarity":2,
         "description":"連擊型卷軸，使用時此次攻擊保底連擊次數+3，前四次行動必為攻擊。",
         "availnum":"1",
@@ -510,7 +510,7 @@
     },
     "F102":{
         "item_type":"F",
-        "name":"即視",
+        "name":"熟練",
         "rarity":1,
         "description":"傷害變化型卷軸，使用時所有行動數值增加5。",
         "availnum":"5t7",
@@ -520,7 +520,7 @@
     },
     "F202":{
         "item_type":"F",
-        "name":"熟練",
+        "name":"百戰",
         "rarity":2,
         "description":"傷害變化型卷軸，使用時所有行動數值增加40。",
         "availnum":"3t5",

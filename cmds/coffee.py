@@ -204,6 +204,188 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
             ex_perc+=1
             outmes+=f'\n狛克 :「久等了！這是給你的！」 \n狛克把調製好的飲品推到你面前。'
             await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx))
+            
+    @commands.command()
+    async def toast(self,ctx):
+        global ex_perc
+        rarity=0
+        tsttype=""
+        lightgreen=0x90EE90
+        silver=0xC0C0C0
+        orangered=0xFF4500
+        with open('csvfile\coffee.json','r',encoding='utf-8') as jfile:
+            cofeefile=json.load(jfile)
+
+        #第一次(純歡迎)
+        outmes=f'你向狛克要了一份神秘吐司。\n狛克 : 「{random.choice(cofeefile["toast"]["welcome"])}」\n'
+        outemb= await ctx.send(f"{ctx.author.mention}",embed=new_coffeepack(outmes,silver,ctx))
+        await asyncio.sleep(2)
+        
+        #比重隨機
+        rd_toast = lambda kind : random.choices(list(cofeefile["toast"][kind].keys()),weights=[cofeefile["toast"][kind][ele][0] for ele in cofeefile["toast"][kind]])[0]
+
+        #決定吐司種類
+        toast_kind=rd_toast("toast")
+        outmes+=f'狛克先放了{toast_kind}在盤子上。\n'
+        rarity+=cofeefile["toast"]["toast"][toast_kind][1]
+        await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+        await asyncio.sleep(2)
+
+        #厚片吐司專用
+        if toast_kind=="一片厚片吐司":
+            flavor=rd_toast("thick")
+            outmes+=f'接著，狛克在吐司上{flavor}。\n'
+            rarity+=cofeefile["toast"]["thick"][flavor][1]
+            flvrname=cofeefile["toast"]["thick"][flavor][2]
+            await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+            await asyncio.sleep(2)
+
+            #額外口味
+            thckjam=random.randint(1,100)>80
+            if thckjam:
+                secflavor=rd_toast("jam")
+                secflavor=secflavor.replace("抹上","抹上更多的") if secflavor==flavor else secflavor
+                outmes+=f'心血來潮的狛克，在吐司上{secflavor}。\n'
+                rarity+=cofeefile["toast"]["jam"][secflavor][1]
+                flvrname+=cofeefile["toast"]["jam"][secflavor][2]
+                await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                await asyncio.sleep(2)
+
+            outmes+=f'狛克將做好的厚片吐司，沿著對角線劃上兩刀。\n'
+            await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+            await asyncio.sleep(2)
+        #普通吐司
+        else:
+            #決定種類
+            tsttype=random.choices(["jamed","ingr","ingrjamed","white"],weights=[10,70,19,1])[0]
+
+            if "jamed" in tsttype:
+                jamtype=random.choices(["single","doubled"],weights=[80,20])[0]
+                if jamtype == "single":
+                    jam=rd_toast("jam")
+                    outmes+=f'接著，狛克在兩片吐司上各{jam}。\n'
+                    await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                    await asyncio.sleep(2)
+                    rarity+=cofeefile["toast"]["jam"][jam][1]
+                    flvrname=cofeefile["toast"]["jam"][jam][2]
+                elif jamtype == "doubled":
+                    jam1=rd_toast("jam")
+                    jam2=jam1
+                    while jam2 == jam1:
+                        jam2=rd_toast("jam")
+                    outmes+=f'接著，狛克在其中一片吐司上{jam1}。\n'
+                    await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                    await asyncio.sleep(2)
+                    outmes+=f'然後在另外一片吐司上，{jam2.replace("抹上","抹上了")}。\n'
+                    await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                    await asyncio.sleep(2)
+                    rarity+=cofeefile["toast"]["jam"][jam1][1]+cofeefile["toast"]["jam"][jam2][1]
+                    flvrname=cofeefile["toast"]["jam"][jam1][2]+cofeefile["toast"]["jam"][jam2][2]
+            else:
+                flvrname=""
+        
+            if "ingr" in tsttype:
+                lettucedice=random.randint(1,100)>20
+                tmtdice=random.randint(1,100)>80
+
+                if lettucedice and tmtdice:
+                    rarity+=15
+                    lttmtmes=f'狛克切了一些番茄與生菜，放在吐司上。'
+                elif lettucedice:
+                    rarity+=5
+                    lttmtmes=f'狛克放了些生菜在吐司上。'
+
+                if lettucedice:
+                    outmes+=f'然後，{lttmtmes}\n' if "接著" in outmes else f'接著，{lttmtmes}\n'
+                    await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                    await asyncio.sleep(2)
+                
+
+                multin,ingrdc,numofingr=1.0,True,0
+                while ingrdc:
+                    ingrdc=random.choices([True,False],cum_weights=[multin,1.0])[0]
+                    multin*=0.33
+                    numofingr+=1
+
+                raw_ingrlst=[]
+                for _ in range(numofingr):
+                    rd_ingr=rd_toast("side")
+                    raw_ingrlst.append(rd_ingr)
+                    rarity+=cofeefile["toast"]["side"][rd_ingr][1]
+                
+                eggdice=random.randint(1,100)>60
+                if eggdice:
+                    raw_ingrlst.append("放上一片煎蛋")
+                    rarity+=10
+                
+                for counts in range(len(raw_ingrlst)):
+                    ingredients=raw_ingrlst[counts]
+                    ingrmes=f'狛克在吐司上{ingredients}'
+                    ingrmes=ingrmes.replace("在吐司上","在吐司上又") if ingredients in outmes else ingrmes
+                    conjunc="最後" if counts==len(raw_ingrlst)-1 and counts!=0 else random.choice(["之後","然後","不急不徐地"])
+                    outmes+=f'{conjunc}，{ingrmes}。\n'
+                    await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+                    await asyncio.sleep(2)
+
+                ingr={}
+                for ingredients in set(raw_ingrlst):
+                    ingr[cofeefile["toast"]["side"][ingredients][2]]=raw_ingrlst.count(ingredients)
+                
+                
+                clubbed=any(["雞" in outmes,"豬" in outmes,"牛" in outmes]) and ("培根" in ingr) and lettucedice and tmtdice
+                if clubbed:
+                    del ingr["培根"]
+
+                numdict={1:"",2:"雙倍",3:"三重",4:"四倍"}
+                for ingrtype in [cofeefile["toast"]["side"][ele][2] for ele in cofeefile["toast"]["side"]]:
+                    if ingrtype in ingr:
+                        if ingrtype=="蛋" and clubbed:
+                            continue
+                        flvrname+=f'{numdict.get(ingr[ingrtype],"海量")}{ingrtype}'
+                
+                if clubbed:
+                    flvrname+="總匯"
+                    rarity+=25
+
+            if tsttype=="white":
+                flvrname="烤"
+            
+            outmes+=f'狛克將放好配料的兩片吐司面對面闔上。\n' if tsttype!="white" else f'狛克將兩片香噴噴的烤吐司面對面闔上。\n'
+            sandwiched=random.randint(1,100)>50
+            if sandwiched:
+                outmes+=f'再將做好的吐司沿著對角線，切成四份後立起來。\n'
+                rarity+=5
+            await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
+            await asyncio.sleep(2)
+            
+        if rarity<=15:
+            rarname="UR"
+        elif rarity<=40:
+            rarname="N"
+        elif rarity<=80:
+            rarname="R"
+        elif rarity<=120:
+            rarname="SR"
+        elif rarity<=180:
+            rarname="**SSR**"
+        elif rarity<=220:
+            rarname="**SSSR**"
+        else:
+            rarname="**SSSSR**"
+
+        toast_shape = "三明治" if toast_kind!="一片厚片吐司" and sandwiched else "吐司"
+
+        ex_perc=149 if ex_perc==150 else ex_perc
+        secretdice=random.randint(1,150-ex_perc)
+        if secretdice == 1:
+            ex_perc=0
+            outmes+=f'\n狛克 :「久等了！這是給......」\n結果狛克不小心記錯，把吐司拿給別人了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx))
+        else:
+            ex_perc+=1
+            outmes+=f'\n狛克 :「久等了！這是給你的！」 \n狛克把做好的吐司推到你面前。\n'
+            outmes+=f'你得到了[{rarname}]{flvrname}{cofeefile["toast"]["toast"][toast_kind][2]}{toast_shape}！'
+            await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx))
 
 def setup(bot):
     bot.add_cog(Coffee(bot))

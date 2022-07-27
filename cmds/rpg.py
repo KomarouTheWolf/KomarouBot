@@ -395,10 +395,10 @@ class Rpg(Cog_Extension):
                     error_outmes+=f"使用**{ch(ags)}**時發生錯誤！\n所使用之武器變化型卷軸的補血上限({-low_limitation})小於傷害保障型卷軸或連擊型卷軸的補血上限({limitation})！\n"
                     args = [ele for ele in args if not ele in b_args+c_args+d_args]
         
-        #錯誤:抽牌但必定攻擊
+        #錯誤:無盡但必定攻擊
         if c_args and c_type=="a" and "D201" in args:
-            error_outmes+=f"使用**{ch(c_args[0])}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與抽牌！(此卷軸為{typedic[c_type]}型卷軸)\n"
-            error_outmes+=f"使用**{ch('D201')}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與抽牌！\n"
+            error_outmes+=f"使用**{ch(c_args[0])}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與無盡！(此卷軸為{typedic[c_type]}型卷軸)\n"
+            error_outmes+=f"使用**{ch('D201')}**時發生錯誤！\n不得同時使用必定攻擊型的卷軸與無盡！\n"
 
         #道具數量字典
         scrolls_dict={}
@@ -1144,9 +1144,6 @@ class Rpg(Cog_Extension):
     async def setchannel_error(self,error,ctx):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("此指令為指定k!hit可使用頻道。只有擁有管理員權限的成員才能使用。")
-
-#之後做個可以設定可用頻道的?
-#新增一部分道具
-
+        
 def setup(bot):
     bot.add_cog(Rpg(bot))
