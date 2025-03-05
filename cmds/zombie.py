@@ -83,6 +83,10 @@ class Zombie(Cog_Extension):
         await original_message.add_reaction(emoji1)
         await original_message.add_reaction(emoji2)
 
+
+        #你各位請看沒學好coroutine與task的下場
+        #這段我是懶得改了 反正都能動
+
         try:
             reaction,user=await self.bot.wait_for("reaction_add", timeout=120, check=check2)
             if str(reaction.emoji) ==emoji2:
@@ -416,5 +420,5 @@ class Zombie(Cog_Extension):
             await original_message.clear_reactions()
             await original_message.edit(content=f"太久了啦不理你了-w-")
 
-def setup(bot):
-    bot.add_cog(Zombie(bot))
+async def setup(bot):
+    await bot.add_cog(Zombie(bot))

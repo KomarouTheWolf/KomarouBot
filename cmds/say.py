@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import asyncio
 import random
+from discord.ui import Button,View
 
 def do_pss(a,b):
     if a==b:
@@ -13,9 +14,61 @@ def do_pss(a,b):
         return "b" if a==3 else "a"
     else:
         return "b" if a<b else "a"
+    
+#可以呼叫指令的button
+class ClCmdBton(Button):
+    def __init__(self, label:str, emoji:str, commandf, ctxg):
+        super().__init__(style=discord.ButtonStyle.green, emoji=emoji, label=label)
+        self.ctx=ctxg
+        self.command=commandf
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.ctx.author==interaction.user:
+            await self.view.clickdead()
+            await interaction.response.defer()
+            await self.ctx.invoke(self.command)
+        else:
+            await interaction.response.defer()
+
+
+#可以呼叫指令的View
+class OneButtonCmdView(View):
+    def __init__(self, label:str, emoji:str, commandk ,ctxf):
+        super().__init__(timeout=180)
+        self.add_item(ClCmdBton(label, emoji, commandk,ctxf))
+        self.org_mes=None
+
+    async def clickdead(self):
+        for btns in self.children:
+            btns.disabled=True
+            btns.style=discord.ButtonStyle.gray
+        await self.org_mes.edit(view=self) 
+
+    async def on_timeout(self):
+        for btns in self.children:
+            btns.disabled=True
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     jchannel=json.load(jfile)
+with open("csvfile\\ocgatcha.txt",'r',encoding='utf-8') as jfile:
+    rawocgatcha=jfile.readlines()
+    ocgatcha=[]
+    for lines in rawocgatcha:
+        ocgatcha.append(lines.strip('\n'))
+
+def randgatcha(nam:str):
+    outmes=""
+    for _ in range(10):
+        dice=random.randint(1,100)
+        if dice >97:
+            outmes+=f'**{random.choice([ele for ele in ocgatcha if ele.startswith("UR")])}{nam}**\n'
+        elif dice >75:
+            outmes+=f'{random.choice([ele for ele in ocgatcha if ele.startswith("SSR")])}{nam}\n'
+        elif dice >40:
+            outmes+=f'{random.choice([ele for ele in ocgatcha if ele.startswith("SR")])}{nam}\n'
+        else:
+            outmes+=f'{random.choice([ele for ele in ocgatcha if ele.startswith("R")])}{nam}\n'
+    return outmes
 
 class Say(Cog_Extension):
     @commands.command()
@@ -23,6 +76,23 @@ class Say(Cog_Extension):
         await ctx.message.delete()
         arg=ctx.message.clean_content[5:]
         await ctx.send(f'{arg}')
+
+    @commands.command()
+    async def whatif(self,ctx):
+        authr = ctx.author.display_name
+        slfcmd= self.bot.get_command("whatif")
+        theView=OneButtonCmdView("再十抽！","🪄",slfcmd,ctx)
+        embedmes = discord.Embed(title="抽卡✨！", description=f'汪汪汪！正在幫你十連抽！',colour=0x800000)
+        embedmes.set_author(name=authr, icon_url=ctx.author.display_avatar.url)
+        orgmes = await ctx.send(content=f'{ctx.author.mention}',embed=embedmes)
+        await asyncio.sleep(2)
+        restxt=randgatcha(authr)
+        resclr=0xFFE153 if "UR" in restxt else 0xff9999
+        embedmes = discord.Embed(title="抽卡✨！", description=f'汪汪汪！這是你的十連抽結果！\n{restxt}',colour=resclr) 
+        embedmes.set_footer(text="心動了嗎？該委託或畫出來了！")
+        embedmes.set_author(name=authr, icon_url=ctx.author.display_avatar.url)
+        await orgmes.edit(embed=embedmes,view=theView)
+        theView.org_mes=orgmes
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -53,7 +123,7 @@ class Say(Cog_Extension):
                     await org_message.delete()
                     try:
                         embedmes2 = discord.Embed(title="出拳！", description=f'玩家{authr}，請在60秒內於下方以文字留言你要出的拳。(剪刀、石頭、布)')
-                        embedmes2.set_author(name=authr, icon_url=message.author.avatar_url)
+                        embedmes2.set_author(name=authr, icon_url=message.author.display_avatar.url)
                         org2_message=await message.channel.send(embed=embedmes2)
                         def checkb(incmessage):
                             return incmessage.author == message.author and incmessage.channel==message.channel
@@ -76,7 +146,7 @@ class Say(Cog_Extension):
                             r1="你輸了！"
                             r2="哼哼，我很厲害吧！"
                         embedmes3 = discord.Embed(title=r1, description=r2)
-                        embedmes3.set_author(name=authr, icon_url=message.author.avatar_url)
+                        embedmes3.set_author(name=authr, icon_url=message.author.display_avatar.url)
                         embedmes3.add_field(name="你出了", value=they_do, inline=True)
                         embedmes3.add_field(name="Bot出了", value=cpu_do, inline=True)
                         embedmes3.set_footer(text="打「剪刀石頭布」來進行猜拳對決")
@@ -120,7 +190,7 @@ class Say(Cog_Extension):
                 reaction,user=await self.bot.wait_for("reaction_add", timeout=120, check=checkv)
                 if str(reaction.emoji) ==emoji_n:
                     embedmes = discord.Embed(title="💣被拒...", description=f'{chlngr}拒絕了你發起的剪刀石頭布對戰...')
-                    embedmes.set_author(name=invtr, icon_url=message.author.avatar_url)
+                    embedmes.set_author(name=invtr, icon_url=message.author.display_avatar.url)
                     org_message.clear_reactions()
                     await org_message.edit(embed=embedmes)
                 if str(reaction.emoji) ==emoji_y:
@@ -174,11 +244,32 @@ class Say(Cog_Extension):
                     embedmes = discord.Embed(title="💣超時...", description=f'其中一方沒有出拳-w-...')
                     embedmes.set_author(name="裁判", icon_url=self.bot.user.default_avatar_url)
                     await org_message.edit(embed=embedmes)
+                    await org_message.clear_reactions()
             except asyncio.TimeoutError:
                 embedmes = discord.Embed(title="💣超時...", description=f'{chlngr}沒有接受你發起的剪刀石頭布對戰-w-...')
-                embedmes.set_author(name=invtr, icon_url=message.author.avatar_url)
+                embedmes.set_author(name=invtr, icon_url=message.author.display_avatar.url)
                 await org_message.edit(embed=embedmes)
+                await org_message.clear_reactions()
+        if message.content == '午餐吃什麼' and message.author != self.bot.user:
+            authr = message.author.name if message.author.nick is None else message.author.nick
+            with open('csvfile\coffee.json','r',encoding='utf-8') as jfile:
+                cofeefile=json.load(jfile)
+            e_or_d = random.choices(["吃","喝"],weights=(len(cofeefile["dinner"]["吃"]),len(cofeefile["dinner"]["喝"])))[0]
+            resultin = random.choice(cofeefile["dinner"][e_or_d])
+            embedmes = discord.Embed(title="午餐！", description=f'{authr}，午餐你可以{e_or_d}{resultin}。')
+            embedmes.set_author(name=authr, icon_url=message.author.display_avatar.url)
+            await message.channel.send(embed=embedmes)
+
+        if message.content == '晚餐吃什麼' and message.author != self.bot.user:
+            authr = message.author.name if message.author.nick is None else message.author.nick
+            with open('csvfile\coffee.json','r',encoding='utf-8') as jfile:
+                cofeefile=json.load(jfile)
+            e_or_d = random.choices(["吃","喝"],weights=(len(cofeefile["dinner"]["吃"]),len(cofeefile["dinner"]["喝"])))[0]
+            resultin = random.choice(cofeefile["dinner"][e_or_d])
+            embedmes = discord.Embed(title="晚餐！", description=f'{authr}，晚餐你可以{e_or_d}{resultin}。')
+            embedmes.set_author(name=authr, icon_url=message.author.display_avatar.url)
+            await message.channel.send(embed=embedmes)
 
 
-def setup(bot):
-    bot.add_cog(Say(bot))
+async def setup(bot):
+    await bot.add_cog(Say(bot))

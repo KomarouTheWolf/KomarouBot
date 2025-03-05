@@ -16,6 +16,7 @@ damagerec="csvfile\\damagerec.csv"
 timenote="csvfile\\timelimit.csv"
 boss_killer="csvfile\\killed.csv"
 rpgweapon="csvfile\\rpgweapon.csv"
+specialrpgweapon="csvfile\\specialrpgweapon.csv"
 
 with open('csvfile\channel.json','r',encoding='utf-8') as jfile:
     gifs=json.load(jfile)
@@ -81,8 +82,8 @@ def read_bosskiller():
     return df
 
 #讀取武器表 #串列注意
-def read_weapons():
-    with open(rpgweapon,'r',encoding='utf-8') as jfile:
+def read_weapons(file):
+    with open(file,'r',encoding='utf-8') as jfile:
         alllines=[]
         raw_data=jfile.readlines()
         for lines in raw_data:
@@ -235,27 +236,165 @@ def gatcha(user_id,adjust_luck=0):    #結果是名字,數字
     return ch(gatcharesult),num
 
 #回報玩家的冷卻秒數
-def in_colddown(id):
+def in_colddown(id,extra_time=0):
     time_df=read_time()
-    if id not in time_df["playerID"].values:
-        blanky=pd.DataFrame([[id,time.time(),0]])
-        csv_write(blanky,timenote,"a")
-        return 0
-    awaittime = time_df.loc[time_df["playerID"]==id,"time"].values[0]
-    if time.time()-awaittime<5:
-        a=5-round(time.time()-awaittime)
-        time_df.loc[time_df["playerID"]==id,"uncolddown"]+=1
-        csv_write(time_df,timenote,"w")
-        return 1 if a==0 else a
+    if extra_time==0:
+        if id not in time_df["playerID"].values:
+            blanky=pd.DataFrame([[id,time.time()+5,0]])
+            csv_write(blanky,timenote,"a")
+            return 0
+        awaittime = time_df.loc[time_df["playerID"]==id,"time"].values[0]
+        if awaittime-time.time()>0:
+            a=round(awaittime-time.time())
+            time_df.loc[time_df["playerID"]==id,"uncolddown"]+=1
+            csv_write(time_df,timenote,"w")
+            return 1 if a==0 else a
+        else:
+            time_df.loc[time_df["playerID"]==id,"time"]=time.time()+5
+            time_df.loc[time_df["playerID"]==id,"uncolddown"]=0
+            csv_write(time_df,timenote,"w")
+            return 0
     else:
-        time_df.loc[time_df["playerID"]==id,"time"]=time.time()
-        time_df.loc[time_df["playerID"]==id,"uncolddown"]=0
+        time_df.loc[time_df["playerID"]==id,"time"]+=extra_time
         csv_write(time_df,timenote,"w")
-        return 0
 
+
+def read_story(id):        #回報list
+    it_dict=read_item()
+    if str(id) not in it_dict:
+        return []
+    return it_dict[str(id)].get("story",[])
+
+def check_chapter(id):
+    strylst=read_story(id)
+    fst_chap=[1,2,3]
+    sec_chap=fst_chap+[4,5,6,7]
+    trd_chap=sec_chap+[8,9,10,11]
+    fth_chap=trd_chap+[12,13]
+    strychck = lambda chap,lst : all(ele in lst for ele in chap)
+    if strychck(fth_chap,strylst):
+        return "終幕"
+    elif strychck(trd_chap,strylst):
+        return "第四節"
+    elif strychck(sec_chap,strylst):
+        return "第三節"
+    elif strychck(fst_chap,strylst):
+        return "第二節"
+    else:
+        return "第一節"
+
+def givestory(id):
+    it_dict=read_item()
+    #新手初始化
+    if str(id) not in it_dict:
+        it_dict[str(id)]={"tooths":0,"furs": 0,"items": {}}
+    #讀取故事與當前章節
+    stories = it_dict[str(id)].setdefault("story",[])
+    chaptering=check_chapter(id)
+    #選擇不重複的故事給予
+    def selectedstory(itdct,gvelst):
+        while True:
+            gve=random.choice(gvelst)
+            if gve not in itdct[str(id)]["story"]:
+                break
+        return gve
+
+    if chaptering=="終幕":
+        return 0,False    #已全部獲得
+    elif chaptering=="第四節":
+        gvstry=selectedstory(it_dict,[12,13])
+    elif chaptering=="第三節":
+        gvstry=8 if 8 not in stories else selectedstory(it_dict,[9,10,11])
+    elif chaptering=="第二節":
+        gvstry=selectedstory(it_dict,[4,5,6,7])
+    else:
+        gvstry=selectedstory(it_dict,[1,2,3])
+    it_dict[str(id)]["story"].append(gvstry)
+    chapterchanged = True if any(ele==len(it_dict[str(id)]["story"]) for ele in (3,7,11,13)) else False
+    save_item(it_dict)
+    return gvstry,chapterchanged
+
+def scrolldebugging(mult_args):
+
+    #把arg變成只有道具種類的list
+    args=list(set(mult_args))
+
+    #是否有道具名稱錯誤
+    for used_scroll in args:
+        if used_scroll not in itemdict:
+            return False
+    
+    #args變成ID
+    args=[find_id(ele) for ele in args if ele in itemdict]
+
+    #錯誤:不可用兌換道具
+    for used_scroll in args:
+        if used_scroll.startswith("O"):
+            return False
+
+    #錯誤:B>1種
+    b_args=[ele for ele in args if ele.startswith("B")]
+    if len(b_args)>1:
+        return False
+
+    #錯誤:C>1種
+    c_args=[ele for ele in args if ele.startswith("C")]
+    if len(c_args)>1:
+        return False
+
+    d_args=[ele for ele in args if ele.startswith("D") and inf(ele)["move_type"]!="c"]
+
+    #讀出上下限與傷害制限種類
+    b_type,c_type,d_type="","",""
+    if b_args: 
+        b_type=inf(b_args[0])["move_type"]  #a必攻,b必奶
+        limitation=inf(b_args[0])["limit"] if inf(b_args[0])["can_combo"]=="N" else 1
+    if c_args:
+        c_type=inf(c_args[0])["move_type"] #a必攻,b必奶,c都有
+        c_moves=inf(c_args[0])["weapons"]
+        high_limitation=max([int(ele[3]) for ele in c_moves])
+        low_limitation=min([int(ele[2]) for ele in c_moves])
+    if d_args:
+        d_type="a"
+        d_limitation=0
+        for d_items in d_args:
+            d_limitation=max(inf(d_items)["limit"],d_limitation)
+
+    #錯誤:必攻+必回
+    final_type=set([ele for ele in [b_type,c_type,d_type] if ele and ele!="c"])
+    if len(final_type)>1:
+        return False
+    
+    #錯誤:C的極限達不到滿足B的條件
+    if b_type=="a" and d_type=="a":
+        limitation=max(limitation,d_limitation)
+    if d_type and not b_type:
+        limitation=d_limitation
+    if c_args and (b_args or d_args):
+        if final_type=={"a"} and high_limitation<limitation:
+            return False
+        if final_type=={"b"} and low_limitation>-limitation:
+            return False
+    
+    #錯誤:無盡但必定攻擊
+    if c_args and c_type=="a" and "D201" in args:
+        return False
+
+    #道具數量字典
+    scrolls_dict={}
+    for scrolls in set(mult_args):
+        scrolls_dict[itemdict[scrolls]]=mult_args.count(scrolls)
+
+    if b_args and scrolls_dict[b_args[0]]>1:
+        return False
+    if c_args and scrolls_dict[c_args[0]]>1:
+        return False
+    
+    #沒問題
+    return True
 
 #embed設定author
-embname = lambda embed_message, ctx : embed_message.set_author(name=ctx.author.nick or ctx.author.name, icon_url=ctx.author.avatar_url)
+embname = lambda embed_message, ctx : embed_message.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
 #爆字數檢定
 toolong = lambda x: len(x)>1600
 
@@ -268,6 +407,7 @@ class Boss:
         self.bosstype=defaultname   #這個不動
         self.name=defaultname       #這個拿來改
         self.overkilling=False
+        self.distancing=0
     def hp_reset(self):
         self.hp=random.randint(self.minhp,self.maxhp)
     def killed(self):
@@ -276,6 +416,7 @@ class Boss:
 boss=Boss(500,1000,"狛克")
 boss.hp=0
 timelimited=True
+twinlimittimes=0
 
 ###########################################################################################################################
 #正式指令開始
@@ -284,6 +425,7 @@ class Rpg(Cog_Extension):
     async def hit(self,ctx,*args):
         global boss
         global timelimited
+        global twinlimittimes
         id=ctx.author.id
         args=list(args)
         mult_args=[]
@@ -299,6 +441,12 @@ class Rpg(Cog_Extension):
         if ctx.channel.id  not in available_channel:
             await ctx.send(f'本頻道不可使用此指令，或者沒有登錄此頻道。')
             return
+
+        if boss.bosstype=="小偷" and args:
+            error_mes=discord.Embed(title="❌卷軸無效",description="不可對當前的BOSS使用卷軸！")
+            embname(error_mes,ctx)
+            await ctx.send(embed=error_mes)
+            return
         
         #把有數量的道具讀進mult_args
         for used_scroll in args:
@@ -306,17 +454,38 @@ class Rpg(Cog_Extension):
                 mult_args+=[used_scroll[:used_scroll.index("*")]]*int(used_scroll[used_scroll.index("*")+1:])
             else:
                 mult_args+=[used_scroll]
+
+        #地獄級別難度指令--卷軸手稿
+        if scrolldebugging(mult_args) and "卷軸手稿" in mult_args:
+            scriptbreakinto=[]
+            safelist=[ele for ele in item_fulldata if not any([ele.startswith("X"),ele.startswith("O"),ele=="K301",ele=="J301"])]
+            for _ in range(mult_args.count("卷軸手稿")):
+                for _ in range(random.randint(5,8)):
+                    while True:
+                        #試試看
+                        experiency_scroll=ch(random.choice(safelist))
+                        experiency_mult_args=mult_args+[experiency_scroll]
+                        if scrolldebugging(experiency_mult_args):
+                            mult_args+=[experiency_scroll]
+                            giveitem(id,experiency_scroll)
+                            scriptbreakinto+=[experiency_scroll]
+                            break
+            heavengrass_mes=discord.Embed(title="📋️分裂！",description=f"手稿上凌亂的文字產生了各種效果！\n本次行動額外獲得以下卷軸之效果：{'、'.join(scriptbreakinto)}\n")
+            embname(heavengrass_mes,ctx)
+            await ctx.send(embed=heavengrass_mes)
         
         #把arg變成只有道具種類的list
         args=list(set(mult_args))
 
         #是否有道具名稱錯誤
-        for used_scroll in args:
-            if used_scroll not in itemdict:
-                wrong_list=[ele for ele in args if ele not in itemdict]
-                for wrong_scroll in wrong_list:
-                    error_outmes+=f"使用**{wrong_scroll}**時發生錯誤！\n找不到此道具，請檢查是否輸入正確。\n"
-                break
+        wrong_list=[ele for ele in args if ele not in itemdict]
+        if wrong_list:
+            for wrong_scroll in wrong_list:
+                error_outmes+=f"使用**{wrong_scroll}**時發生錯誤！\n找不到此道具，請檢查是否輸入正確。\n"
+            error_mes=discord.Embed(title="❌卷軸無效",description=f"{error_outmes}")
+            embname(error_mes,ctx)
+            await ctx.send(embed=error_mes)
+            return
         
         #args變成ID
         args=[find_id(ele) for ele in args if ele in itemdict]
@@ -405,6 +574,7 @@ class Rpg(Cog_Extension):
         for scrolls in set(mult_args):
             scrolls_dict[itemdict[scrolls]]=mult_args.count(scrolls)
 
+
         if b_args and scrolls_dict[b_args[0]]>1:
             error_outmes+=f"使用**{ch(b_args[0])}**時發生錯誤！\n傷害保障型卷軸一次只能使用一個！\n"
         if c_args and scrolls_dict[c_args[0]]>1:
@@ -441,9 +611,41 @@ class Rpg(Cog_Extension):
 
         ######此行以下沒有除了變形術以外的return######
         
-        #血量重置
-        if boss.killed():
-            boss=Boss(500,1000,"狛克")
+        #血量重置 #重生
+        if boss.killed() or "J101" in scrolls_dict:
+            #吟遊機制
+            specialkomaroudice=random.randint(1,100)
+            poeted=1<=specialkomaroudice<=2
+            twined=3<=specialkomaroudice<=6
+            enpowered=7<=specialkomaroudice<=8
+            theifappear=specialkomaroudice==9
+            if poeted:
+                boss=Boss(500,1000,"吟遊狛克")
+                heavengrass_mes=discord.Embed(title="🪕「旅人們啊，是否願意駐足？」",description=f"吟遊狛克不請自來！\n").set_footer(text="特殊技能：被攻擊時機率無效化整次行動，所有參與戰鬥者獲得故事碎片。")
+                embname(heavengrass_mes,ctx)
+                await ctx.send(embed=heavengrass_mes)
+            elif twined:
+                boss=Boss(500,600,"半融合狛克")
+                heavengrass_mes=discord.Embed(title="🎁「『來玩吧。』」",description=f"半融合狛克前來！\n").set_footer(text="特殊技能：半融合狛克在10回合後會完全融合成2倍血量的普通狛克。完全融合前雪狼毛掉落率上升一倍，且擊敗時尾刀者獎勵大幅增加。")
+                embname(heavengrass_mes,ctx)
+                twinlimittimes=11
+                await ctx.send(embed=heavengrass_mes)
+            elif enpowered:
+                boss=Boss(500,1000,"巨尾狛克")
+                heavengrass_mes=discord.Embed(title="👊「嘎吼吼吼吼吼！」",description=f"你遇到了尾巴超大的狛克！\n").set_footer(text="特殊技能：單次傷害超過150時，會反過來打你。MVP獎勵大幅上升。")
+                embname(heavengrass_mes,ctx)
+                await ctx.send(embed=heavengrass_mes)
+            elif theifappear:
+                boss=Boss(1000,1000,"小偷")
+                heavengrass_mes=discord.Embed(title="💸『來人啊！抓小偷啊！』",description=f"小偷從卷軸商人家中衝出！\n別跟丟小偷了！\n\n追捕模式：\n不可使用卷軸。\n使用k!hit以攻擊小偷，小偷每回合會試著與玩家方拉開距離，距離超過30米後會跟丟。\n使用k!slow可以拉近與小偷的距離。")
+                embname(heavengrass_mes,ctx)
+                await ctx.send(embed=heavengrass_mes)
+                boss.distancing=5
+                for scroll in scrolls_dict:
+                    giveitem(id,ch(scroll),scrolls_dict[scroll])
+                return
+            else:
+                boss=Boss(500,1000,"狛克")
             doblank_dmgrec(damagerec)
             revived=True
 
@@ -471,7 +673,15 @@ class Rpg(Cog_Extension):
 
         #消耗道具
         for scrolls in scrolls_dict:
-            removeitem(id,ch(scrolls),scrolls_dict[scrolls])
+            removeitem(id,ch(scrolls),scrolls_dict[scrolls])                
+
+        if "X102" in scrolls_dict:
+            boss=Boss(500,1000,"吟遊狛克")
+            doblank_dmgrec(damagerec)
+            heavengrass_mes=discord.Embed(title="🪕「此等美妙樂章，敢問能否共奏？」",description=f"你演奏了上古樂譜！\n吟遊狛克被美妙的樂曲吸引而來！\n").set_footer(text="特殊技能：被攻擊時機率無效化整次行動，所有參與戰鬥者獲得故事碎片。")
+            embname(heavengrass_mes,ctx)
+            await ctx.send(embed=heavengrass_mes)
+            revived=True
 
         if "X101" in scrolls_dict:
             boss=Boss(3000,5000,"天堂狛克")
@@ -481,7 +691,7 @@ class Rpg(Cog_Extension):
             await ctx.send(embed=heavengrass_mes)
             revived=True
 
-        if revived:
+        if revived and not boss.bosstype=="小偷":
             if len(read_bosskiller().index)%1000 == 0:
                 boss.name=boss.name.replace(boss.name,f"千年{boss.name}")
                 transform_mes=discord.Embed(title="🌊特殊事件！",description=f"{boss.name}從湖底甦醒了！\n").set_footer(text="特殊技能：被回血時回復5倍。")
@@ -492,11 +702,6 @@ class Rpg(Cog_Extension):
                 transform_mes=discord.Embed(title="🏔️特殊事件！",description=f"{boss.name}從山頂躍下！\n").set_footer(text="特殊技能：每次被攻擊固定回復20點血量。")
                 embname(transform_mes,ctx)
                 await ctx.send(embed=transform_mes)
-
-        #重生
-        if "J101" in scrolls_dict:
-            boss.hp_reset()
-            revived=True
 
         #分離
         if "J201" in scrolls_dict:
@@ -535,9 +740,18 @@ class Rpg(Cog_Extension):
             textout=""
 
             #隨機行動
-            WeaponResult=random.choice(c_moves) if c_args else random.choice(read_weapons())
-            mvmain1,mvmain2,mvdown,mvup=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
-            atk = 0 if mvup==0 else random.randint(mvdown,mvup)
+            if boss.bosstype=="小偷":
+                WeaponResult=random.choice(read_weapons(specialrpgweapon))
+                mvtype,mvdistance,mvmisspercentage,mvatk=WeaponResult[0],int(WeaponResult[1]),int(WeaponResult[2]),int(WeaponResult[3])
+                pineapple=0 if mvdistance>boss.distancing else boss.distancing/mvdistance-1
+                mvaimed=(random.randint(1,100)-(100*pineapple-mvmisspercentage*(1-pineapple)))>0
+                atk=mvatk if mvaimed else 0
+            else:
+                hasC = [ele for ele in args if ele.startswith("C")]
+                WeaponResult=random.choice(inf(hasC[0])["weapons"]) if hasC else random.choice(read_weapons(rpgweapon))
+                mvmain1,mvmain2,mvdown,mvup=WeaponResult[0],WeaponResult[1],int(WeaponResult[2]),int(WeaponResult[3])
+                atk = 0 if mvup==0 else random.randint(mvdown,mvup)
+                atk = boss.hp if mvup==10000 else atk
 
             #傷害制限
             if b_type or lockcount or verticount:
@@ -568,19 +782,34 @@ class Rpg(Cog_Extension):
             atk = round(F_calc(atk,scrolls_dict,True))
 
             #千年百年
-            if len(read_bosskiller().index)%1000 == 0 and atk<0:
-                atk*=5
-            if len(read_bosskiller().index)%1000 != 0 and len(read_bosskiller().index)%100 == 0 and not boss.killed():
-                boss.hp+=20
+            if "狛克" in boss.bosstype:
+                if len(read_bosskiller().index)%1000 == 0 and atk<0:
+                    atk*=5
+                if len(read_bosskiller().index)%1000 != 0 and len(read_bosskiller().index)%100 == 0 and not boss.killed():
+                    boss.hp+=20
 
             #傷害訊息印出
-            if atk==0:
-                weapontextout=f'{mvmain1}\n{mvmain2}\n'
-            elif mvmain2 == "a":
-                weapontextout=f'{mvmain1}\n'
+            if boss.bosstype=="小偷":
+                if atk!=0:
+                    weapontextout=f'你{mvtype}，造成了{atk}點傷害。\n'
+                elif pineapple>1:
+                    weapontextout=f'你{mvtype}，但是距離太遠了沒打中。\n'
+                else:
+                    weapontextout=f'你{mvtype}，但被小偷躲開了。\n'
             else:
-                weapontextout=f'{mvmain1}{abs(atk)}{mvmain2}\n'
+                if atk==0:
+                    weapontextout=f'{mvmain1}\n{mvmain2}\n'
+                elif mvmain2 == "a":
+                    weapontextout=f'{mvmain1}\n'
+                else:
+                    weapontextout=f'{mvmain1}{abs(atk)}{mvmain2}\n'
             textout=weapontextout
+
+            #巨尾狛克
+            if boss.bosstype=="巨尾狛克" and atk>150:
+                punishment=random.randint(1,5)
+                in_colddown(id,punishment)
+                textout+=f"**反擊！**狛克用尾巴將你拍飛，你多了額外{punishment}秒無法行動！\n"
 
             #追擊類道具
             E_allatk=0
@@ -610,7 +839,7 @@ class Rpg(Cog_Extension):
                         textout+=f'{inf(Es)["move"][0]}{abs(E_atk)}{inf(Es)["move"][1]}\n'
                     else:   #未滿足再動條件
                         E_atk=0
-                    E_allatk+=E_atk
+                    E_allatk+=0 if mvup==10000 else E_atk
 
             #鞭屍判定
             if boss.killed():
@@ -647,7 +876,13 @@ class Rpg(Cog_Extension):
             #單次行動結束
             can_use_combo-=1
 
-        #寫入傷害表============================================================================
+        #吟遊狛克的7%無效============================================================================
+        if boss.bosstype=="吟遊狛克" and random.randint(1,100)<8 and atk+E_allatk>0:
+            alloutmes+=f"**發動！**狛克身形一閃，無效化了總計{atk+E_allatk}點傷害！\n"
+            boss.hp+=(atk+E_allatk)
+            totaldmg,atk,E_allatk=0,0,0
+
+        #寫入傷害表
         damage_df=read_damagerec()
         if id not in damage_df["playerID"].values:
             blanky=pd.DataFrame([[id,(atk+E_allatk)]])
@@ -693,10 +928,20 @@ class Rpg(Cog_Extension):
             alloutmes+=f'狛克還有{boss.hp}點血量！\n{status_}'
         else:
             boss.hp=0
-            alloutmes+=f'狛克被變成了薩摩耶！\n'
+            if boss.bosstype=="小偷":
+                alloutmes+=f'小偷被銬上手銬帶走了！\n'
+            else:
+                alloutmes+=f'狛克被變成了薩摩耶！\n'
             if "威爾森" in boss.name:
                 alloutmes=alloutmes.replace("薩摩耶","竹節蟲")
 
+        #改名   
+        if "A101" in scrolls_dict:
+            alloutmes=alloutmes.replace("狛克","哈庫瑪瑪塌塌").replace("你","狛克").replace("哈庫瑪瑪塌塌","你")
+        alloutmes=alloutmes.replace("狛克",boss.name)
+
+
+        if boss.killed():
             #MVP計算
             damage_df=read_damagerec()
             damage_df.sort_values(["dmg"],ascending=False,inplace=True)
@@ -710,8 +955,9 @@ class Rpg(Cog_Extension):
                 mvp_name=mvp_member.nick or mvp_member.name
             else:
                 mvp_name=await self.bot.fetch_user(int(mvp))
-            alloutmes+=f'本次BOSS輸出之MVP為{str(mvp_name)}，輸出率為{mvp_atkperc}%\n'
+            alloutmes+=f'本次BOSS輸出之MVP為{str(mvp_name)}，貢獻率為{mvp_atkperc}%\n'
 
+        if boss.killed() and "狛克" in boss.bosstype:
             #令牌計算
             if len(read_bosskiller().index)%1000 == 0:
                 giveitem(id,"銀令牌")
@@ -743,9 +989,11 @@ class Rpg(Cog_Extension):
         if totaldmg>0:
             tooth_get=int(tooth_dice/100)
         else:
-            tooth_get=int(tooth_dice/95)
+            tooth_get=int(tooth_dice/95) if not boss.bosstype=="半融合狛克" else int(tooth_dice/50)
         if boss.killed():
             tooth_get+=int(random.randint(1,100)/80)
+            if boss.bosstype=="半融合狛克":
+                tooth_get+=int(random.randint(300,600)/80)
 
         #防止齒爆
         if tooth_get>30:
@@ -758,7 +1006,7 @@ class Rpg(Cog_Extension):
                 tooth_get+=4
                 damage_df=read_damagerec()
                 damage_df.sort_values(["dmg"],ascending=False,inplace=True)
-                #篩出有資格拿的人(每10%1個)
+                #篩出有資格拿的人(每5%1個)
                 damage_df["can_have_items"]=damage_df["dmg"]/damage_df["dmg"].sum()*20
                 damage_df.loc[:,"can_have_items"]=damage_df["can_have_items"].astype("int64")
                 canhave_df=damage_df[damage_df["can_have_items"]>0]
@@ -766,18 +1014,49 @@ class Rpg(Cog_Extension):
                 #卡進字典裡(攻擊者的會在攻擊者自己的裡面)
                 for n in range(canhave_df.shape[0]):
                     award_str=''
+                    getter=int(canhave_df.iloc[n]["playerID"])
                     for _ in range(canhave_df.iloc[n]["can_have_items"]):
-                        resitem,resnum=gatcha(id,(70 if n==0 else 50))
+                        resitem,resnum=gatcha(getter,(70 if n==0 else 50))
                         award_str+=f"{resnum}個{resitem}\n"
-                    if int(canhave_df.iloc[n]["playerID"]) == id:
+                    if getter == id:
                         fiel1+=award_str
                     else:
-                        hv_resultdict[int(canhave_df.iloc[n]["playerID"])]=award_str
-            #攻擊者計算
-            for _ in range(tooth_get):
-                resitem,resnum=gatcha(id,50)
-                fiel1+=f"{resnum}個{resitem}\n"
-
+                        hv_resultdict[getter]=award_str
+            else:
+                #攻擊者計算
+                for _ in range(tooth_get):
+                    resitem,resnum=gatcha(id,50)
+                    fiel1+=f"{resnum}個{resitem}\n"
+        elif boss.bosstype=="小偷":
+            if boss.killed():
+                tooth_get+=2
+                damage_df=read_damagerec()
+                damage_df.sort_values(["dmg"],ascending=False,inplace=True)
+                #篩出有資格拿的人(每20%1個)
+                damage_df["can_have_items"]=damage_df["dmg"]/damage_df["dmg"].sum()*5
+                damage_df.loc[:,"can_have_items"]=damage_df["can_have_items"].astype("int64")
+                canhave_df=damage_df[damage_df["can_have_items"]>0]
+                hv_resultdict={}
+                #卡進字典裡(攻擊者的會在攻擊者自己的裡面)
+                for n in range(canhave_df.shape[0]):
+                    award_str=''
+                    getter=int(canhave_df.iloc[n]["playerID"])
+                    for _ in range(canhave_df.iloc[n]["can_have_items"]):
+                        resitem,resnum=gatcha(getter,95)
+                        award_str+=f"{resnum}個{resitem}\n"
+                    #MVP專屬獎勵
+                    if n==0:
+                        giveitem(getter,"卷軸手稿")
+                        award_str+=f"1個卷軸手稿\n"
+                    if getter == id:
+                        fiel1+=award_str
+                    else:
+                        hv_resultdict[getter]=award_str
+            else:
+                #攻擊者計算
+                for _ in range(tooth_get):
+                    resitem,resnum=gatcha(id,75)
+                    fiel1+=f"{resnum}個{resitem}\n"
         else:
             #攻擊者計算
             if totaldmg>0:
@@ -792,23 +1071,56 @@ class Rpg(Cog_Extension):
             #mvp計算
             if boss.killed():
                 mvp_dice=random.randint(1,100+round(mvp_atkperc*0.2))
+                mvp_dice*=10 if boss.bosstype=="巨尾狛克" else 1     #巨尾狛克
                 mvp_tooth=int((mvp_dice+10)/100) if mvp!=id else int((mvp_dice)/100)
+                mvp_tooth=6 if mvp_tooth>6 else mvp_tooth
                 #給牙囉
                 if mvp_tooth:
                     givetooth(mvp,mvp_tooth)
                     fiel2+=f"{mvp_tooth}顆雪狼牙\n"            
 
-        #改名   
-        if "A101" in scrolls_dict:
-            alloutmes=alloutmes.replace("狛克","哈庫瑪瑪塌塌").replace("你","狛克").replace("哈庫瑪瑪塌塌","你")
-        alloutmes=alloutmes.replace("狛克",boss.name)
-
         #反打的行動
         alloutmes=alloutmes.replace("owowowo",str(random.randint(1,100)))
+
+        #半融合狛克
+        if boss.bosstype=="半融合狛克" and not boss.killed():
+            if twinlimittimes == 1:
+                twinlimittimes=0
+                boss.bosstype="狛克"
+                boss.name.replace("半融合","")
+                boss.hp*=2
+                alloutmes+=f'半融合狛克完全融合完成！血量變為{boss.hp}點！\n'
+            else:
+                twinlimittimes-=1
+                if twinlimittimes == 1:
+                    alloutmes+=f'半融合狛克離完全融合只差最後一步！\n'
+                if twinlimittimes == 3:
+                    alloutmes+=f'半融合狛克的融合程序快結束了！\n'
+                if twinlimittimes == 5:
+                    alloutmes+=f'半融合狛克逐步融合！\n'
+
+        if boss.bosstype=="小偷" and not boss.killed():
+            if boss.distancing>30 and random.randint(1,100)<=70:
+                alloutmes+=f'小偷遁入不起眼的小巷裡！你們跟丟了！\n'
+            else:
+                theifaction=[["小偷撒下了一堆釘子，為了躲避釘子而降慢速度的你們被拉開了kmgkmgkmg公尺。",2,5],
+                            ["小偷奮力疾跑，與你們拉開了kmgkmgkmg公尺。",1,3],
+                            ["小偷往你們腳下施放黏糊糊魔法，速度被拖慢的你們被拉開了kmgkmgkmg公尺。",1,4],
+                            ["小偷拐進了巷子裡面，為了尋找小偷的方向，你們被拉開了kmgkmgkmg公尺。",3,5]]
+                theifdo=random.choice(theifaction)
+                thfmv,thfd,thfu=theifdo[0],theifdo[1],theifdo[2]
+                distancy=random.randint(thfd,thfu)
+                alloutmes+=f'{thfmv.replace("kmgkmgkmg",str(distancy))}\n'
+                boss.distancing+=distancy
+                alloutmes+=f'你們目前與小偷的距離為{boss.distancing}公尺！\n'
         
         #決定標題
         if revived and boss.killed():
             atktype="💀秒殺！"
+        elif mvup==10000:
+            atktype="💀秒殺！"
+        elif boss.bosstype=="小偷" and boss.killed():
+            atktype="🚓逮捕！"
         elif boss.killed():
             atktype="🪦擊殺！"
         elif allcombos==1 and ("骨頭" in alloutmes) and ("骨頭" not in boss.name):
@@ -835,7 +1147,7 @@ class Rpg(Cog_Extension):
             hitembedmes.add_field(name="你得到了：",value=fiel1, inline=True)
         if fiel2:
             hitembedmes.add_field(name="MVP得到了：",value=fiel2, inline=True)
-        if boss.bosstype=="天堂狛克" and boss.killed():
+        if boss.bosstype=="天堂狛克" or boss.bosstype=="小偷" and boss.killed():
             for haver in hv_resultdict:
                 haver_name=await self.bot.fetch_user(haver)
                 hitembedmes.add_field(name=f"{str(haver_name)}得到了：",value=hv_resultdict[haver], inline=True)
@@ -850,7 +1162,9 @@ class Rpg(Cog_Extension):
         else:
             hahahalol=discord.File(random.choice(gifs["samoyed"]))
 
-        if boss.killed() and toolong(alloutmes):
+        if boss.killed() and boss.bosstype=="小偷":
+            await ctx.send(embed=hitembedmes,file=discord.File("pictures\\arrest.png"))
+        elif boss.killed() and toolong(alloutmes):
             await ctx.send(embed=hitembedmes,files=[outfile,hahahalol])
         elif boss.killed():
             await ctx.send(embed=hitembedmes,file=hahahalol)
@@ -861,7 +1175,7 @@ class Rpg(Cog_Extension):
 
         #次數紀念的恭喜訊息
         secmes=""    #second message
-        if boss.killed():
+        if boss.killed() and "狛克" in boss.bosstype:
             if len(read_bosskiller().index)%10 == 1:
                 secmes+=f"你是第{len(read_bosskiller().index)-1}個把狛克變成薩摩耶的玩家！"
             if read_bosskiller()["playerID"].value_counts()[id]%5 == 0:
@@ -870,6 +1184,27 @@ class Rpg(Cog_Extension):
             secembmes=discord.Embed(title="🎉恭喜",description=secmes)
             embname(secembmes,ctx)
             await ctx.send(embed=secembmes)
+
+        #吟遊狛克擊殺特殊獎勵
+        if boss.bosstype=="吟遊狛克" and boss.killed():
+            celemes=""
+            damage_df=read_damagerec()
+            for players in damage_df["playerID"].values:
+                givedstory,chapterchanged=givestory(players)
+                if givedstory==0:
+                    continue
+                playeruser=await self.bot.fetch_user(players)
+                playername = playeruser.display_name
+                chchmes= f"，並解鎖了{check_chapter(players)}" if chapterchanged else ""
+                celemes+=f"{playername}得到了故事碎片{givedstory}{chchmes}！\n"
+            if celemes:
+                secembmes=discord.Embed(title="🪗「讓這些故事流傳下去吧。」",description=celemes)
+                await ctx.send(embed=secembmes)
+        
+        #小偷重生
+        if "小偷遁入不起眼的小巷裡！你們跟丟了！" in alloutmes:
+            boss.hp=0
+                
 
 ####################################################################################################################################
     @commands.command()
@@ -1092,6 +1427,128 @@ class Rpg(Cog_Extension):
             await ctx.send(f'{ctx.author.mention}\n{outmes}')
 
     @commands.command()
+    async def story(self,ctx,arg=""):
+        storylist=read_story(ctx.author.id)
+        chapternow=check_chapter(ctx.author.id)
+        chaptername={'1':"📰一份舊報紙",
+        '2':"📷難民聚集地的採訪影像",
+        '3':"📬寄至遠方的信件",
+        '4':"⚗️與魔法商人的談話紀錄",
+        '5':"🎙️山中冒險者的口述",
+        '6':"🛖與山頂居民的對話",
+        '7':"⛩️與參加祭典者的交談",
+        '8':"📘遺落在山谷中的筆記",
+        '9':"📹獵人專訪的錄像節錄",
+        '10':"📃被揉成團的廢紙",
+        '11':"📜一封懺悔書",
+        '12':"📙嶄新的筆記本",
+        '13':"📱某個群組的對話紀錄",
+        '14':"🐺與狼獸人的對峙"}
+        if not arg:
+            outmes=""
+            showname = lambda num,storylist: chaptername[str(num)] if num in storylist else "????????"
+
+            if chapternow in ('終幕', '第四節', '第三節', '第二節', '第一節'):
+                outmes+="**第一節————雪色的災殃**\n"
+                outmes+=f'1.{showname(1,storylist)}\n'
+                outmes+=f'2.{showname(2,storylist)}\n'
+                outmes+=f'3.{showname(3,storylist)}\n'
+            if chapternow in ('終幕', '第四節', '第三節', '第二節'):
+                outmes+="**第二節————風暴中的燈塔**\n"
+                outmes+=f'4.{showname(4,storylist)}\n'
+                outmes+=f'5.{showname(5,storylist)}\n'
+                outmes+=f'6.{showname(6,storylist)}\n'
+                outmes+=f'7.{showname(7,storylist)}\n'
+            if chapternow in ('終幕', '第四節', '第三節'):
+                outmes+="**第三節————白霧掩蓋的真相**\n"
+                outmes+=f'8.{showname(8,storylist)}\n'
+                outmes+=f'9.{showname(9,storylist)}\n'
+                outmes+=f'10.{showname(10,storylist)}\n'
+                outmes+=f'11.{showname(11,storylist)}\n'
+            if chapternow in ('終幕', '第四節'):
+                outmes+="**第四節————虛構之上的天堂**\n"
+                outmes+=f'12.{showname(12,storylist)}\n'
+                outmes+=f'13.{showname(13,storylist)}\n'
+            if chapternow == '終幕':
+                outmes+="**終幕————一切的解答**\n"
+                outmes+=f'14.{showname(14,storylist)}\n'
+            
+            embedmes=discord.Embed(title="📖故事",description=outmes)
+            embedmes.set_footer(text="輸入k!story (故事碎片編號) 以閱讀故事。")
+            embname(embedmes,ctx)
+            await ctx.send(embed=embedmes)
+        elif arg not in [str(ele) for ele in range(1,15)]:
+            await ctx.send(f'{ctx.author.mention}\n找不到故事。\n請輸入正確的故事碎片編號。')
+        elif int(arg) not in storylist:
+            await ctx.send(f'{ctx.author.mention}\n你還沒有解鎖這份故事碎片。\n故事碎片可以透過討伐吟遊狛克取得。')
+        else:
+            await ctx.send(f'{ctx.author.mention}\n故事已經傳送到私訊。')
+            outmes=f"**故事碎片{arg}:{chaptername[str(arg)]}**\n\n"
+            with open(f'../basically_what/kmr_story/'+arg+'.txt','r',encoding='utf-8') as jfile:
+                storylines=jfile.read()
+            await ctx.author.send(f'{outmes}{storylines}')
+
+            #最終幕解鎖
+            if arg in ("12","13") and chapternow=='終幕' and 14 not in storylist:
+                it_dict=read_item()
+                it_dict[str(ctx.author.id)]["story"].append(14)
+                save_item(it_dict)
+                await ctx.author.send(f'{ctx.author.mention}\n您已閱讀完畢所有故事碎片，解答篇故事碎片14已解鎖。')
+
+    @commands.command()
+    async def slow(self,ctx):
+        global boss
+        id=ctx.author.id
+        if boss.bosstype!="小偷":
+            error_mes=discord.Embed(title="❌行動失敗",description="只有BOSS為小偷時，才可使用此指令。")
+            embname(error_mes,ctx)
+            await ctx.send(embed=error_mes)
+            return
+        
+        if boss.distancing==0:
+            error_mes=discord.Embed(title="❌距離過近！",description="小偷已經在你們眼前了！")
+            embname(error_mes,ctx)
+            await ctx.send(embed=error_mes)
+            return
+
+        if timelimited and in_colddown(id):
+            time_df=read_time()
+            if time_df.loc[time_df["playerID"]==id,"uncolddown"].values[0]<3:
+                unc_mes=f"本指令有5秒冷卻！您還有{in_colddown(id)}秒！"
+            else:
+                unc_mes=f"本指令有5秒冷卻！您還有{in_colddown(id)}...欸不是你到底有完沒完！"
+            notcoldmes = await ctx.send(f'{ctx.author.mention}\n{unc_mes}')
+            await asyncio.sleep(3)
+            await notcoldmes.delete()
+            return
+
+        theifaction=[["你們對準小偷的頭丟了石頭過去，小偷灰頭土臉的撲倒在地！你們與小偷拉近了kmgkmgkmg公尺。",6,10],
+                            ["你們對準小偷的腳丟了石頭過去，傷到腳的小偷速度暫時變慢，被拉近了kmgkmgkmg公尺。",2,7],
+                            ["你們往前面的地板施放冰凍魔法，小偷腳下一滑，被拉近了kmgkmgkmg公尺。",3,6],
+                            ["你們憑藉對地形的熟悉看準方向抄了近路，與小偷拉近了kmgkmgkmg公尺。",5,8]]
+        theifdo=random.choice(theifaction)
+        thfmv,thfd,thfu=theifdo[0],theifdo[1],theifdo[2]
+        distancy=random.randint(thfd,thfu)
+        truedistancing=distancy if boss.distancing>distancy else boss.distancing
+        outmes=f'{thfmv.replace("kmgkmgkmg",str(truedistancing))}\n'
+        boss.distancing-=truedistancing
+        outmes+=f'你們目前與小偷的距離為{boss.distancing}公尺！\n'
+
+        #紀錄傷害
+        damage_df=read_damagerec()
+        if ctx.author.id not in damage_df["playerID"].values:
+            blanky=pd.DataFrame([[ctx.author.id,truedistancing*50]])
+            csv_write(blanky,damagerec,"a")
+        else:
+            damage_df.loc[damage_df["playerID"]==ctx.author.id,"dmg"]+=truedistancing*50
+            csv_write(damage_df,damagerec,"w")
+
+        secembmes=discord.Embed(title="👟拖延！",description=outmes)
+        embname(secembmes,ctx)
+        await ctx.send(embed=secembmes)
+
+
+    @commands.command()
     @commands.has_permissions(administrator=True)
     async def setchannel(self,ctx,arg=""):
         if arg == "":
@@ -1145,5 +1602,5 @@ class Rpg(Cog_Extension):
         if isinstance(error, commands.MissingPermissions):
             await ctx.send("此指令為指定k!hit可使用頻道。只有擁有管理員權限的成員才能使用。")
         
-def setup(bot):
-    bot.add_cog(Rpg(bot))
+async def setup(bot):
+    await bot.add_cog(Rpg(bot))

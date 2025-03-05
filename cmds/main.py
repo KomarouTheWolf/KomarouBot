@@ -12,7 +12,9 @@ with open('setting.json','r',encoding='utf-8') as jfile:
 class Main(Cog_Extension):
     @commands.command()
     async def ping(self,ctx):
-        await ctx.send(f'機器人目前ping值為{round(self.bot.latency*1000,1)}ms 高得跟鬼一樣')
+        embedmes = discord.Embed(title="ping!", description=f'機器人目前ping值為{round(self.bot.latency*1000,1)}ms 高得跟鬼一樣',colour=0xff9999) 
+        embedmes.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
+        await ctx.send(embed=embedmes)
     
     @commands.command()
     async def helping(self,ctx):
@@ -27,5 +29,5 @@ class Main(Cog_Extension):
 
 #Bot設定區
 
-def setup(bot):
-    bot.add_cog(Main(bot))
+async def setup(bot):
+    await bot.add_cog(Main(bot))

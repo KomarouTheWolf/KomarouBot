@@ -5,17 +5,55 @@ from discord import Embed
 import json
 import random
 import asyncio
+from discord.ui import Button,View
 
 ex_perc=0
 
 def coffeepack(a,ctx):
     embedmes=  discord.Embed(description=a)
-    embedmes.set_author(name=ctx.author.nick or ctx.author.name, icon_url=ctx.author.avatar_url)
+    embedmes.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
     return embedmes
 def new_coffeepack(info,color,ctx):
     embedmes=  discord.Embed(description=info,colour=color)
-    embedmes.set_author(name=ctx.author.nick or ctx.author.name, icon_url=ctx.author.avatar_url)
+    embedmes.set_author(name=ctx.author.display_name, icon_url=ctx.author.display_avatar.url)
     return embedmes
+
+def intr_coffeepack(info,color,intr):
+    embedmes=  discord.Embed(description=info,colour=color)
+    embedmes.set_author(name=intr.user.display_name, icon_url=intr.user.display_avatar.url)
+    return embedmes
+
+#可以呼叫指令的button
+class ClCmdBton(Button):
+    def __init__(self, label:str, emoji:str, commandf, ctxg):
+        super().__init__(style=discord.ButtonStyle.green, emoji=emoji, label=label)
+        self.ctx=ctxg
+        self.command=commandf
+
+    async def callback(self, interaction: discord.Interaction):
+        if self.ctx.author==interaction.user:
+            await self.view.clickdead()
+            await interaction.response.defer()
+            await self.ctx.invoke(self.command)
+        else:
+            await interaction.response.defer()
+
+#可以呼叫指令的View
+class OneButtonCmdView(View):
+    def __init__(self, label:str, emoji:str, commandk ,ctxf):
+        super().__init__(timeout=180)
+        self.add_item(ClCmdBton(label, emoji, commandk,ctxf))
+        self.org_mes=None
+
+    async def clickdead(self):
+        for btns in self.children:
+            btns.disabled=True
+            btns.style=discord.ButtonStyle.gray
+        await self.org_mes.edit(view=self) 
+
+    async def on_timeout(self):
+        for btns in self.children:
+            btns.disabled=True
 
 class Coffee(Cog_Extension):
     @commands.command()
@@ -144,7 +182,7 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
 ……沒事沒事，我，我是說，我也喜歡黑糖…
 總而言之，做好了，趕快拿去喝啦//// '''
         embedmes=coffeepack(a,ctx)
-        await ctx.send(f'{ctx.author.mention}',embed=embedmes)
+        await ctx.send(f'{ctx.author.mention}',embed=embedmes)    
 
     @commands.command()
     async def drink(self,ctx):
@@ -156,6 +194,10 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
             cofeefile=json.load(jfile)
         main=random.choice(cofeefile["drink"]["main"])
         side=random.choice(cofeefile["drink"]["side"])
+
+        slfcmd= self.bot.get_command("drink")
+        theView=OneButtonCmdView("再一杯！","🍹",slfcmd,ctx)
+
         if side==main:
             side="更多的"+side
         else:
@@ -199,11 +241,12 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
         if secretdice == 1:
             ex_perc=0
             outmes+=f'\n狛克 :「久等了！這是給你......啊啊啊啊！」 \n狛克把調製好的飲品打翻了。'
-            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx))
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
         else:
             ex_perc+=1
             outmes+=f'\n狛克 :「久等了！這是給你的！」 \n狛克把調製好的飲品推到你面前。'
-            await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx))
+            await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx),view=theView)
+        theView.org_mes=outemb
             
     @commands.command()
     async def toast(self,ctx):
@@ -215,6 +258,9 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
         orangered=0xFF4500
         with open('csvfile\coffee.json','r',encoding='utf-8') as jfile:
             cofeefile=json.load(jfile)
+
+        slfcmd= self.bot.get_command("toast")
+        theView=OneButtonCmdView("再一份！","🍞",slfcmd,ctx)
 
         #第一次(純歡迎)
         outmes=f'你向狛克要了一份神秘吐司。\n狛克 : 「{random.choice(cofeefile["toast"]["welcome"])}」\n'
@@ -244,8 +290,8 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
             thckjam=random.randint(1,100)>80
             if thckjam:
                 secflavor=rd_toast("jam")
-                secflavor=secflavor.replace("抹上","抹上更多的") if secflavor==flavor else secflavor
-                outmes+=f'心血來潮的狛克，在吐司上{secflavor}。\n'
+                secflavor_txt=secflavor.replace("抹上","抹上更多的") if secflavor==flavor else secflavor
+                outmes+=f'心血來潮的狛克，在吐司上{secflavor_txt}。\n'
                 rarity+=cofeefile["toast"]["jam"][secflavor][1]
                 flvrname+=cofeefile["toast"]["jam"][secflavor][2]
                 await outemb.edit(embed=new_coffeepack(outmes,silver,ctx))
@@ -320,7 +366,10 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
                 
                 for counts in range(len(raw_ingrlst)):
                     ingredients=raw_ingrlst[counts]
-                    ingrmes=f'狛克在吐司上{ingredients}'
+                    if ingredients == "放上一整顆高麗菜":       #店長出沒
+                        ingrmes=f'黑野店長突然出現，並在吐司上{ingredients}'
+                    else:
+                        ingrmes=f'狛克在吐司上{ingredients}'
                     ingrmes=ingrmes.replace("在吐司上","在吐司上又") if ingredients in outmes else ingrmes
                     conjunc="最後" if counts==len(raw_ingrlst)-1 and counts!=0 else random.choice(["之後","然後","不急不徐地"])
                     outmes+=f'{conjunc}，{ingrmes}。\n'
@@ -377,15 +426,30 @@ k!Fuusuke ☞ 風助(底部有隻黑糖狼的咖啡)'''
 
         ex_perc=149 if ex_perc==150 else ex_perc
         secretdice=random.randint(1,150-ex_perc)
+        robbedbywolf=random.randint(1,25)==1
         if secretdice == 1:
             ex_perc=0
-            outmes+=f'\n狛克 :「久等了！這是給......」\n結果狛克不小心記錯，把吐司拿給別人了。'
-            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx))
+            outmes+=f'\n狛克 :「久等了！這是給......」\n結果狛克不小心記錯，把{toast_shape}拿給別人了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
+        elif robbedbywolf and "巧克" in flvrname:
+            outmes+=f'\n狛克 :「久等了！這是給......嗚哇啊啊啊！」\n巧克布從吧檯裡冒出來，把你的{toast_shape}咬走了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
+        elif robbedbywolf and "鮪魚" in flvrname:
+            outmes+=f'\n狛克 :「久等了！這是給......啊啊啊！」\n一隻柴碗蒸出來把你的{toast_shape}頂走了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
+        elif "蛋" in flvrname and toast_shape == "三明治" and robbedbywolf:
+            outmes+=f'\n狛克 :「久等了！這是給......欸欸欸！」\n希澈突然衝出來，把你的{toast_shape}叼走了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
+        elif robbedbywolf and "熱狗" in flvrname:
+            outmes+=f'\n狛克 :「久等了！這是給......回來啊喂！」\n{toast_shape}裡的熱狗跟著熱狗跑掉了。'
+            await outemb.edit(embed=new_coffeepack(outmes,orangered,ctx),view=theView)
         else:
             ex_perc+=1
-            outmes+=f'\n狛克 :「久等了！這是給你的！」 \n狛克把做好的吐司推到你面前。\n'
+            outmes+=f'\n狛克 :「久等了！這是給你的！」 \n狛克把做好的{toast_shape}推到你面前。\n'
             outmes+=f'你得到了[{rarname}]{flvrname}{cofeefile["toast"]["toast"][toast_kind][2]}{toast_shape}！'
-            await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx))
+            await outemb.edit(embed=new_coffeepack(outmes,lightgreen,ctx),view=theView)
+        theView.org_mes=outemb
+    
 
-def setup(bot):
-    bot.add_cog(Coffee(bot))
+async def setup(bot):
+    await bot.add_cog(Coffee(bot))
